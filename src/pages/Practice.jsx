@@ -9,9 +9,9 @@ import { User, Swords, ShieldAlert, ChevronRight } from 'lucide-react';
 const STORAGE_KEY = 'salpakan_vsai_state';
 
 const DIFFICULTY_CONFIG = [
-  { id: 'recruit', label: 'Novice AI',    icon: <User size={32} />,       color: '#8E8E93', desc: 'Predictable moves. Great for learning the basic flow.', delay: 600 },
-  { id: 'veteran', label: 'Advanced AI',  icon: <Swords size={32} />,     color: '#007AFF', desc: 'Capable of basic traps. A solid challenge for regulars.', delay: 800 },
-  { id: 'general', label: 'Legendary AI', icon: <ShieldAlert size={32} />, color: '#FF3B30', desc: 'Elite level logic. Every move counts.', delay: 1000 },
+  { id: 'recruit', label: 'Marine', icon: <User size={32} />, color: '#8E8E93', desc: 'Standard tactical training. Focuses on basic unit movement and awareness.', delay: 600 },
+  { id: 'veteran', label: 'Scout Ranger', icon: <Swords size={32} />, color: '#007AFF', desc: 'Specialized jungle warfare logic. Expect aggressive flanking and calculated trades.', delay: 800 },
+  { id: 'general', label: 'SAF Elite', icon: <ShieldAlert size={32} />, color: '#FF3B30', desc: 'Special Action Force level intelligence. Absolute precision in unit protection and capture.', delay: 1000 },
 ];
 
 function buildEmptyBoard() {
@@ -101,11 +101,13 @@ export default function Practice() {
   useEffect(() => {
     if (!winner) return;
     const isWin = winner === 'host';
-    const ICON = { FIVE_STAR:'★★★★★',FOUR_STAR:'★★★★',THREE_STAR:'★★★',TWO_STAR:'★★',ONE_STAR:'★',
-      COLONEL:'✦✦✦',LT_COL:'✦✦',MAJOR:'✦',CAPTAIN:'▲▲',FIRST_LT:'▲',SECOND_LT:'△',
-      SERGEANT:'≡',CORPORAL:'—',PRIVATE:'^',SPY:'◉',FLAG:'⚑' };
+    const ICON = {
+      FIVE_STAR: '★★★★★', FOUR_STAR: '★★★★', THREE_STAR: '★★★', TWO_STAR: '★★', ONE_STAR: '★',
+      COLONEL: '✦✦✦', LT_COL: '✦✦', MAJOR: '✦', CAPTAIN: '▲▲', FIRST_LT: '▲', SECOND_LT: '△',
+      SERGEANT: '≡', CORPORAL: '—', PRIVATE: '^', SPY: '◉', FLAG: '⚑'
+    };
     const enemyPieces = board.flat().filter(c => c?.owner === 'guest');
-    const pieceTiles  = enemyPieces.map(p =>
+    const pieceTiles = enemyPieces.map(p =>
       `<span title="${p.label}" style="display:inline-flex;flex-direction:column;align-items:center;
         justify-content:center;width:40px;height:40px;border-radius:8px;background:#FF3B30;
         color:#fff;font-size:0.85rem;margin:2px;">
@@ -162,29 +164,29 @@ export default function Practice() {
 
       if (!target) {
         next[tr][tc] = mover; next[sr][sc] = null;
-        log = `GUEST: An enemy piece advanced to ${String.fromCharCode(65+tc)}${8-tr}.`;
+        log = `GUEST: An enemy piece advanced to ${String.fromCharCode(65 + tc)}${8 - tr}.`;
       } else {
         const result = resolveCombat(mover.type, target.type);
         if (result === 'attacker') {
           next[tr][tc] = mover; next[sr][sc] = null;
-          log = `GUEST: Your ${target.abbr} at ${String.fromCharCode(65+tc)}${8-tr} was defeated.`;
+          log = `GUEST: Your ${target.abbr} at ${String.fromCharCode(65 + tc)}${8 - tr} was defeated.`;
           if (target.type === 'FLAG') {
-            setAiLastMove({ from:[sr,sc], to:[tr,tc] });
-            update({ board:next, currentTurn:'host', battleLog:[...battleLog, log], winner:'guest' });
+            setAiLastMove({ from: [sr, sc], to: [tr, tc] });
+            update({ board: next, currentTurn: 'host', battleLog: [...battleLog, log], winner: 'guest' });
             aiRunRef.current = false;
             return;
           }
         } else if (result === 'defender') {
           next[sr][sc] = null;
-          log = `HOST: Your ${target.abbr} repelled an unknown enemy at ${String.fromCharCode(65+tc)}${8-tr}!`;
+          log = `HOST: Your ${target.abbr} repelled an unknown enemy at ${String.fromCharCode(65 + tc)}${8 - tr}!`;
         } else {
           next[sr][sc] = null; next[tr][tc] = null;
-          log = `TIE: Tie at ${String.fromCharCode(65+tc)}${8-tr}.`;
+          log = `TIE: Tie at ${String.fromCharCode(65 + tc)}${8 - tr}.`;
         }
       }
 
-      setAiLastMove({ from:[sr,sc], to:[tr,tc] });
-      update({ board:next, currentTurn:'host', battleLog:[...battleLog, log] });
+      setAiLastMove({ from: [sr, sc], to: [tr, tc] });
+      update({ board: next, currentTurn: 'host', battleLog: [...battleLog, log] });
       aiRunRef.current = false;
     }, diff?.delay ?? 700);
     return () => { clearTimeout(timer); aiRunRef.current = false; };
@@ -194,7 +196,7 @@ export default function Practice() {
     if (winner) { navigate('/lobbies', { replace: true }); return; }
     const isStarting = (phase === 'deployment');
     const title = isStarting ? 'Exit Practice?' : 'Forfeit Practice?';
-    const text  = isStarting ? 'Are you sure you want to stop?' : 'Are you sure you want to forfeit?';
+    const text = isStarting ? 'Are you sure you want to stop?' : 'Are you sure you want to forfeit?';
 
     const confirm = await Swal.fire({
       title, text, icon: 'warning', showCancelButton: true,
@@ -209,35 +211,45 @@ export default function Practice() {
   if (!difficulty) {
     return (
       <div className="page-container fit-screen">
-        <div className="container py-5">
-          <div className="d-flex justify-content-between align-items-center mt-4 mb-4">
-            <button onClick={() => navigate('/lobbies')} className="btn btn-light rounded-pill px-3 py-1 border d-flex align-items-center gap-2" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-              ← Back to Lobbies
-            </button>
-          </div>
-          <div className="text-center mb-5">
-            <h1 className="fw-bold mb-2" style={{ letterSpacing: '-1.5px' }}>Practice Mode</h1>
-            <p className="text-muted">Sharpen your skills against our AI before heading to the battlefield.</p>
-          </div>
-          <div className="row g-4 justify-content-center">
-            {DIFFICULTY_CONFIG.map(d => (
-              <div key={d.id} className="col-md-4">
-                <button onClick={() => reset(d.id)}
-                  className="glass-panel p-4 text-start w-100 h-100 hover-lift transition-all border-0 shadow-sm d-flex flex-column gap-3"
-                  style={{ background: '#fff' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: `${d.color}10`, color: d.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {d.icon}
-                  </div>
-                  <div>
-                    <h5 className="fw-bold mb-1">{d.label}</h5>
-                    <p className="text-muted small mb-0">{d.desc}</p>
-                  </div>
-                  <div className="mt-auto pt-3 d-flex align-items-center gap-2 fw-bold text-primary" style={{ fontSize: '0.8rem' }}>
-                    Select Difficulty <ChevronRight size={16} />
-                  </div>
+        <div className="flex-grow-1 overflow-auto p-0 m-0">
+          <div className="dashboard-header-premium mb-4">
+            <div className="dashboard-mesh-bg" />
+            <div className="container position-relative z-1 py-4 py-lg-5">
+              <div className="d-flex justify-content-between align-items-center mt-4 mb-4">
+                <button onClick={() => navigate('/lobbies')} className="btn btn-light rounded-pill px-3 py-1 border d-flex align-items-center gap-2" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                  ← Back to Lobbies
                 </button>
               </div>
-            ))}
+              <div className="text-start animate-slide-in">
+                <h1 className="display-5 fw-bold mb-1 header-gradient-text" style={{ letterSpacing: '-2px' }}>
+                  Practice Mode
+                </h1>
+                <p className="text-muted fw-medium small mb-0">Sharpen your command skills against tactical AI units.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="container mt-4 pb-5">
+            <div className="row g-4 justify-content-center">
+              {DIFFICULTY_CONFIG.map((d, idx) => (
+                <div key={d.id} className="col-md-4">
+                  <button onClick={() => reset(d.id)}
+                    className="glass-panel p-4 text-start w-100 h-100 lobby-card-float transition-all d-flex flex-column gap-3"
+                    style={{ border: '1px solid rgba(0,0,0,0.05)', '--delay': `${idx * 0.1}s` }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 16, background: `${d.color}10`, color: d.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {d.icon}
+                    </div>
+                    <div>
+                      <h5 className="fw-bold mb-1">{d.label}</h5>
+                      <p className="text-muted small mb-0">{d.desc}</p>
+                    </div>
+                    <div className="mt-auto pt-3 d-flex align-items-center gap-2 fw-bold text-primary" style={{ fontSize: '0.8rem' }}>
+                      Deploy for Training <ChevronRight size={16} />
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

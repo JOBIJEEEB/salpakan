@@ -19,9 +19,10 @@ export default function Onboarding() {
   // before our Swal can show, causing a white screen.
   const signingUpRef = useRef(false);
 
-  // Redirect already-logged-in users to lobbies (but NOT during signup)
+  // Redirect already-logged-in users to lobbies (but NOT during signup or password reset)
   useEffect(() => {
-    if (user && !signingUpRef.current) {
+    const isResetting = window.location.hash.includes('type=recovery') || window.location.hash.includes('access_token');
+    if (user && !signingUpRef.current && !isResetting) {
       navigate('/lobbies', { replace: true });
     }
   }, [user]);

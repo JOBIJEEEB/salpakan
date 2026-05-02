@@ -25,6 +25,7 @@ export default function ActiveMatch() {
   const [isReady,      setIsReady]      = useState(false);
   const matchFinishedRef = useRef(false);
   const swalShownRef = useRef(false);
+  const statsProcessedRef = useRef(false);
 
   // ── Shared fetch + apply ─────────────────────────────────────────────────────
   const applyMatchData = (data) => {
@@ -147,65 +148,101 @@ export default function ActiveMatch() {
       if (role === 'host' && match?.status === 'in_progress' && winner) {
         await supabase.from('matches').update({ 
           status: 'completed', 
-          winner: winner,
           winner_id: winner === 'host' ? match.host_id : (winner === 'guest' ? match.guest_id : null)
         }).eq('id', id);
       }
       matchFinishedRef.current = true;
       navigate('/lobbies', { replace: true });
     });
+
+    // Trigger stat update for the current player
+    processEloUpdate(winner);
   }, [winner, role, opponentName]);
 
   // ── Sealer: Host ensures status=completed if winner exists ────────────────
   useEffect(() => {
-    if (winner && match?.status === 'in_progress' && role === 'host') {
-      console.log('Sealer: Host finalizing match status...');
-      supabase.from('matches').update({ 
-        status: 'completed', 
-        winner: winner,
-        winner_id: winner === 'host' ? match.host_id : (winner === 'guest' ? match.guest_id : null)
-      }).eq('id', id).then(({ error }) => {
-        if (error) console.error('Sealer error:', error);
-      });
-    }
+    const sealMatch = async () => {
+      if (winner && match?.status === 'in_progress' && role === 'host') {
+        console.log('Sealer: Attempting to finalize match status...');
+        
+        const winnerId = winner === 'host' ? match.host_id : (winner === 'guest' ? match.guest_id : null);
+        
+        // Strategy 1: Combined Update
+        const { error: err1 } = await supabase.from('matches').update({ 
+          status: 'completed', 
+          winner_id: winnerId
+        }).eq('id', id);
+
+        if (err1) {
+          console.warn('Sealer Strategy 1 failed, trying Strategy 2 (Status only)...', err1);
+          // Strategy 2: Status Only
+          const { error: err2 } = await supabase.from('matches').update({ status: 'completed' }).eq('id', id);
+          if (err2) console.error('Sealer Strategy 2 failed:', err2);
+          else console.log('Sealer Strategy 2 Success: Status marked completed.');
+        } else {
+          console.log('Sealer Strategy 1 Success: Match fully finalized.');
+        }
+      }
+    };
+    sealMatch();
   }, [winner, match?.status, role]);
 
-  // ── Process Elo Update ────────────────────────────────────────────────────
+  // ── Process Elo Update (Each player updates their own stats) ───────────────
   const processEloUpdate = async (finalWinnerRole) => {
+    // SessionStorage guard is the most reliable way to prevent double-counting across re-renders
+    const storageKey = `salpakan_processed_${id}`;
+    if (sessionStorage.getItem(storageKey)) {
+      console.log('EloUpdate: Match already processed, skipping.');
+      return;
+    }
+    
+    if (statsProcessedRef.current) return;
+    statsProcessedRef.current = true;
+    sessionStorage.setItem(storageKey, 'true');
+    
     const hostId = match.host_id;
     const guestId = match.guest_id;
-    if (!hostId || !guestId) return;
+    if (!hostId || !guestId || !profile) return;
 
-    const { data: hostProfile } = await supabase.from('user_profiles').select('command_rating, wins, losses, draws').eq('id', hostId).single();
-    const { data: guestProfile } = await supabase.from('user_profiles').select('command_rating, wins, losses, draws').eq('id', guestId).single();
+    // Fetch latest ratings for both to ensure calculation is accurate
+    const { data: hostP } = await supabase.from('user_profiles').select('command_rating, peak_rating, wins, losses, draws').eq('id', hostId).single();
+    const { data: guestP } = await supabase.from('user_profiles').select('command_rating, peak_rating, wins, losses, draws').eq('id', guestId).single();
     
-    if (!hostProfile || !guestProfile) return;
+    if (!hostP || !guestP) return;
 
-    const hostCR = hostProfile.command_rating ?? 1000;
-    const guestCR = guestProfile.command_rating ?? 1000;
-
+    const hostCR = hostP.command_rating ?? 1000;
+    const guestCR = guestP.command_rating ?? 1000;
     let hostScore = 0.5; // tie
     if (finalWinnerRole === 'host') hostScore = 1;
     else if (finalWinnerRole === 'guest') hostScore = 0;
 
     const { newA: newHostCR, newB: newGuestCR } = calculateElo(hostCR, guestCR, hostScore);
+    
+    const isHost = (role === 'host');
+    const myNewCR = isHost ? newHostCR : newGuestCR;
+    const myProfile = isHost ? hostP : guestP;
+    const myScore = isHost ? hostScore : (1 - hostScore);
 
     try {
-      const { error: hErr } = await supabase.from('user_profiles').update({
-        command_rating: newHostCR,
-        wins: hostProfile.wins + (hostScore === 1 ? 1 : 0),
-        losses: hostProfile.losses + (hostScore === 0 ? 1 : 0),
-        draws: (hostProfile.draws || 0) + (hostScore === 0.5 ? 1 : 0)
-      }).eq('id', hostId);
-      if (hErr) console.warn('Elo update host error:', hErr);
+      console.log(`StatsUpdate [${role}]: myScore=${myScore}, currentWins=${myProfile.wins}, currentLosses=${myProfile.losses}`);
+      
+      const updatePayload = {
+        command_rating: myNewCR,
+        peak_rating: Math.max(myProfile.peak_rating || 0, myNewCR),
+        wins: (myProfile.wins || 0) + (myScore === 1 ? 1 : 0),
+        losses: (myProfile.losses || 0) + (myScore === 0 ? 1 : 0),
+        draws: (myProfile.draws || 0) + (myScore === 0.5 ? 1 : 0)
+      };
 
-      const { error: gErr } = await supabase.from('user_profiles').update({
-        command_rating: newGuestCR,
-        wins: guestProfile.wins + (hostScore === 0 ? 1 : 0),
-        losses: guestProfile.losses + (hostScore === 1 ? 1 : 0),
-        draws: (guestProfile.draws || 0) + (hostScore === 0.5 ? 1 : 0)
-      }).eq('id', guestId);
-      if (gErr) console.warn('Elo update guest error:', gErr);
+      // ONLY update the current player's profile to satisfy RLS
+      const { error } = await supabase.from('user_profiles').update(updatePayload).eq('id', user.id);
+      
+      if (error) {
+        console.error('Self profile update error:', error);
+      } else {
+        console.log('StatsUpdate Success:', updatePayload);
+        refreshProfile(); // Refresh context
+      }
     } catch (err) {
       console.warn('Elo update catch block:', err);
     }
@@ -254,7 +291,6 @@ export default function ActiveMatch() {
     const { error: updErr } = await supabase.from('matches').update({
       status: nextStatus,
       game_state: nextGs,
-      winner: finalWinner,
       winner_id: wId
     }).eq('id', id);
 
@@ -265,10 +301,6 @@ export default function ActiveMatch() {
       }).eq('id', id);
       
       if (fallbackErr) console.error('syncToSupabase final failure:', fallbackErr);
-    }
-
-    if (finalWinner) {
-      if (finalWinner !== 'tie') await processEloUpdate(finalWinner);
     }
   };
   
@@ -359,18 +391,22 @@ export default function ActiveMatch() {
 
       const wId = finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null);
 
-      const { error: updErr } = await supabase.from('matches').update({
+      // Strategy 1: Combined Update
+      const { error: err1 } = await supabase.from('matches').update({
         status: isStarting ? 'cancelled' : 'completed',
         game_state: newGs,
-        winner: finalWinner,
         winner_id: wId
       }).eq('id', id);
 
-      if (!updErr) {
-        matchFinishedRef.current = true;
-        if (!isStarting) await processEloUpdate(opponentRole);
-        navigate('/lobbies', { replace: true });
+      if (err1) {
+        console.warn('Forfeit Strategy 1 failed, trying Strategy 2...', err1);
+        // Strategy 2: Game State & Status Only (separated if needed)
+        await supabase.from('matches').update({ game_state: newGs }).eq('id', id);
+        await supabase.from('matches').update({ status: isStarting ? 'cancelled' : 'completed' }).eq('id', id);
       }
+
+      matchFinishedRef.current = true;
+      navigate('/lobbies', { replace: true });
     }
   };
 

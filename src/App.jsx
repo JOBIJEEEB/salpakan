@@ -12,6 +12,8 @@ import ActiveMatch from './pages/ActiveMatch';
 import Practice from './pages/Practice';
 import Leaderboard from './pages/Leaderboard';
 import Account from './pages/Account';
+import ResetPassword from './pages/ResetPassword';
+import Tutorial from './pages/Tutorial';
 
 const Placeholder = ({ title }) => (
   <div className="page-container">
@@ -29,9 +31,10 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
   
-  // We don't want the navbar in the heat of battle
+  // We don't want the navbar in the heat of battle or during onboarding briefings
   const isBattlefield = location.pathname.startsWith('/match/');
-  const showNav = user && !isBattlefield;
+  const isTutorial = location.pathname === '/tutorial';
+  const showNav = user && !isBattlefield && !isTutorial;
 
   return (
     <div className="d-flex flex-column min-vh-100">
@@ -53,6 +56,8 @@ function AppContent() {
           <Route path="/practice"    element={<ProtectedRoute><Practice /></ProtectedRoute>} />
           <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
           <Route path="/account"     element={<ProtectedRoute><Account /></ProtectedRoute>} />
+          <Route path="/tutorial"    element={<Tutorial />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </main>
     </div>

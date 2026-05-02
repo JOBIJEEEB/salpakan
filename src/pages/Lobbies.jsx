@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Lock, Globe, LogIn, RefreshCw, Trophy, Users, Shield, Target, Clock, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { getRankTier, formatRR } from '../lib/rankUtils';
+import { getRankTier, getNextTier, getProgressToNext, formatRR } from '../lib/rankUtils';
 import Swal from 'sweetalert2';
 
 function generateCode() {
@@ -24,12 +24,14 @@ export default function Lobbies() {
   const [error, setError] = useState(null);
 
   const tier = profile ? getRankTier(profile.command_rating) : null;
+  const nextTier = profile ? getNextTier(profile.command_rating) : null;
+  const progress = profile ? getProgressToNext(profile.command_rating) : 0;
 
   const fetchMatches = async () => {
     setLoading(true);
     const { data, error: fetchErr } = await supabase
       .from('matches')
-      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating)')
+      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating, avatar_style, avatar_seed)')
       .eq('privacy', 'public')
       .order('created_at', { ascending: false })
       .limit(30);
@@ -135,40 +137,92 @@ export default function Lobbies() {
   return (
     <div className="page-container fit-screen">
       <div className="flex-grow-1 overflow-auto p-0 m-0">
-        {/* ── TOP STATS HERO ─────────────────────────────────────────────────── */}
-        <div style={{ background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-
-          <div className="container py-4">
+        {/* ── COMMAND DASHBOARD HEADER ────────────────────────────────────────── */}
+        <div className="dashboard-header-premium mb-4 pb-4">
+          <div className="dashboard-mesh-bg" />
+          
+          <div className="container position-relative z-1 py-4 py-lg-5">
             <div className="row align-items-center g-4">
-              <div className="col-lg-6">
-                <h1 className="fw-bold mb-1" style={{ letterSpacing: '-1.5px', fontSize: '2.5rem' }}>Game Center</h1>
-                <div className="d-flex align-items-center gap-3">
-                  <div className="d-flex align-items-center justify-content-center"
-                    style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(0, 122, 255, 0.1)', color: '#007AFF' }}>
-                    <Users size={24} />
+              {/* Profile Side */}
+              <div className="col-lg-4">
+                <div className="d-flex align-items-center gap-4 animate-slide-in">
+                  <div className="position-relative">
+                    <div className="avatar-ring-animated" />
+                    <div className="lobby-profile-avatar-lg shadow-xl">
+                      <img 
+                        src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
+                        alt="Profile" 
+                      />
+                    </div>
                   </div>
+                  
                   <div>
-                    <div className="fw-bold" style={{ fontSize: '1.1rem' }}>{profile?.username || 'Player'}</div>
-                    <div className="text-muted" style={{ fontSize: '0.85rem' }}>{tier?.name || 'Novice'} Rank</div>
+                    <h1 className="display-6 fw-bold mb-1 header-gradient-text" style={{ letterSpacing: '-2px' }}>
+                      Game Center
+                    </h1>
+                    <div className="d-flex align-items-center gap-2">
+                      <span className="text-muted fw-medium small">Tactical Commander <b>{profile?.username}</b></span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="col-lg-6">
-                <div className="d-flex justify-content-lg-end gap-4">
-                  {[
-                    { label: 'Rank Rating (RR)', val: formatRR(profile?.command_rating || 0), icon: <Target size={16} />, color: '#007AFF' },
-                    { label: 'Wins', val: profile?.wins || 0, icon: <Trophy size={16} />, color: '#34C759' },
-                    { label: 'Losses', val: profile?.losses || 0, icon: <Zap size={16} />, color: '#FF3B30' }
-                  ].map(s => (
-                    <div key={s.label} className="text-center">
-                      <div className="text-muted text-uppercase fw-bold mb-1" style={{ fontSize: '0.65rem', letterSpacing: '1px' }}>{s.label}</div>
-                      <div className="d-flex align-items-center justify-content-center gap-2">
-                        <span style={{ color: s.color }}>{s.icon}</span>
-                        <span className="fw-bold" style={{ fontSize: '1.2rem' }}>{s.val}</span>
+              {/* Tactical Status Row (Right) */}
+              <div className="col-lg-8">
+                <div className="d-flex flex-wrap align-items-center justify-content-lg-end gap-3 animate-fade-in-delayed">
+                  {/* Hero Rank Module (Compact) */}
+                  <div className="hero-rank-module p-2 d-flex align-items-center gap-3" 
+                       style={{ minWidth: 380, background: 'rgba(255,255,255,0.95)' }}>
+                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 32, height: 32, background: '#fff', border: '1px solid #000', flexShrink: 0 }}>
+                      <img src={tier?.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div className="d-flex justify-content-between mb-1">
+                        <span className="fw-black text-uppercase" style={{ fontSize: '0.6rem', letterSpacing: '0.5px' }}>
+                          Rank · <span style={{ color: tier?.color }}>{tier?.name}</span>
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: '#007AFF', fontWeight: 800 }}>
+                          {progress}%
+                        </span>
+                      </div>
+                      <div style={{ background: '#F2F2F7', borderRadius: 999, height: 5, border: '1px solid rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                        <div style={{ 
+                          width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${tier?.color || '#007AFF'} 0%, #007AFF 100%)`, 
+                          transition: 'width 1.5s cubic-bezier(0.165, 0.84, 0.44, 1)' 
+                        }} />
                       </div>
                     </div>
-                  ))}
+                    <div className="px-2 border-start text-center">
+                      <div className="text-muted fw-bold" style={{ fontSize: '0.45rem', lineHeight: 1 }}>RATING</div>
+                      <div className="fw-black" style={{ fontSize: '0.8rem', lineHeight: 1 }}>{formatRR(profile?.command_rating || 0)}</div>
+                    </div>
+                  </div>
+
+                  {/* Wins Pill */}
+                  <div className="glass-stat-pill stat-card-green m-0">
+                    <div className="d-flex align-items-center gap-3">
+                      <div className="stat-icon-wrapper" style={{ color: '#34C759' }}>
+                        <Trophy size={18} />
+                      </div>
+                      <div className="text-start">
+                        <div className="stat-value">{profile?.wins || 0}</div>
+                        <div className="stat-label">Wins</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Losses Pill */}
+                  <div className="glass-stat-pill stat-card-red m-0">
+                    <div className="d-flex align-items-center gap-3">
+                      <div className="stat-icon-wrapper" style={{ color: '#FF3B30' }}>
+                        <Zap size={18} />
+                      </div>
+                      <div className="text-start">
+                        <div className="stat-value">{profile?.losses || 0}</div>
+                        <div className="stat-label">Losses</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -186,25 +240,26 @@ export default function Lobbies() {
 
             {/* ── CREATE CARD ────────────────────────────────────────────────── */}
             <div className="col-lg-7">
-              <div className="glass-panel p-4 h-100 position-relative overflow-hidden" style={{ minHeight: 300 }}>
+              <div className="glass-panel p-4 h-100 position-relative overflow-hidden create-match-card-premium" style={{ minHeight: 300 }}>
+                <div className="create-card-mesh" />
                 <div className="position-relative z-1">
                   <div className="d-flex justify-content-between align-items-start mb-4">
                     <div>
                       <h4 className="fw-bold mb-1">Create Match</h4>
                       <p className="text-muted mb-0" style={{ fontSize: '0.9rem' }}>Host a new game and invite players.</p>
                     </div>
-                    <div className="d-flex gap-2 p-1 bg-light rounded-pill">
+                    <div className="d-flex gap-2 p-1 bg-white bg-opacity-10 rounded-pill">
                       <button onClick={() => setPrivacy('public')}
                         style={{
-                          padding: '6px 16px', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: 999, transition: 'all 0.2s',
-                          background: privacy === 'public' ? '#007AFF' : 'transparent', color: privacy === 'public' ? '#fff' : '#86868B'
+                          padding: '6px 16px', fontSize: '0.75rem', fontWeight: 700, border: 'none', borderRadius: 999, transition: 'all 0.2s',
+                          background: privacy === 'public' ? '#007AFF' : 'transparent', color: privacy === 'public' ? '#fff' : 'rgba(255,255,255,0.5)'
                         }}>
                         <Globe size={13} className="me-1" /> Public
                       </button>
                       <button onClick={() => setPrivacy('private')}
                         style={{
-                          padding: '6px 16px', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: 999, transition: 'all 0.2s',
-                          background: privacy === 'private' ? '#007AFF' : 'transparent', color: privacy === 'private' ? '#fff' : '#86868B'
+                          padding: '6px 16px', fontSize: '0.75rem', fontWeight: 700, border: 'none', borderRadius: 999, transition: 'all 0.2s',
+                          background: privacy === 'private' ? '#007AFF' : 'transparent', color: privacy === 'private' ? '#fff' : 'rgba(255,255,255,0.5)'
                         }}>
                         <Lock size={13} className="me-1" /> Private
                       </button>
@@ -218,11 +273,11 @@ export default function Lobbies() {
                       { id: 'Competitive', icon: <Target size={20} />, label: 'Competitive', desc: '2m per turn' }
                     ].map(m => (
                       <div key={m.id} onClick={() => setGameMode(m.id)}
-                        className={`p-3 rounded-4 cursor-pointer border-2 transition-all ${gameMode === m.id ? 'border-primary bg-primary bg-opacity-10' : 'border-transparent bg-light opacity-75'}`}
+                        className={`p-3 rounded-4 cursor-pointer border-2 transition-all ${gameMode === m.id ? 'border-white bg-primary bg-opacity-25' : 'border-transparent bg-white bg-opacity-10'}`}
                         style={{ cursor: 'pointer', border: '2px solid transparent' }}>
-                        <div className={`mb-2 ${gameMode === m.id ? 'text-primary' : 'text-muted'}`}>{m.icon}</div>
-                        <div className="fw-bold" style={{ fontSize: '0.9rem' }}>{m.label}</div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>{m.desc}</div>
+                        <div className={`mb-2 ${gameMode === m.id ? 'text-white' : 'text-white-50'}`}>{m.icon}</div>
+                        <div className="fw-bold text-white" style={{ fontSize: '0.9rem' }}>{m.label}</div>
+                        <div className="text-white-50" style={{ fontSize: '0.75rem' }}>{m.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -232,7 +287,7 @@ export default function Lobbies() {
                   </button>
                 </div>
 
-                <div style={{ position: 'absolute', right: -20, bottom: -20, opacity: 0.05 }}>
+                <div style={{ position: 'absolute', right: -20, bottom: -20, opacity: 0.1, color: '#FFFFFF' }}>
                   <Users size={240} />
                 </div>
               </div>
@@ -294,7 +349,7 @@ export default function Lobbies() {
 
                   return (
                     <div key={m.id} className="col-md-6 col-xl-4">
-                      <div className="glass-panel p-4 hover-lift transition-all border-hover-primary" style={{ border: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div className="glass-panel p-4 lobby-card-float transition-all border-hover-primary" style={{ border: '1px solid rgba(0,0,0,0.05)' }}>
                         <div className="d-flex justify-content-between align-items-start mb-3">
                           <div className="d-flex align-items-center gap-2">
                             <span className="badge rounded-pill" style={{ background: 'rgba(52, 199, 89, 0.1)', color: '#34C759', fontSize: '0.65rem' }}>OPEN</span>

@@ -117,7 +117,7 @@ export default function UsernameSetup() {
     await refreshProfile();
     
     // Hard redirect to bypass any unmount/react-router transition issues
-    window.location.href = '/lobbies';
+    window.location.href = '/tutorial';
   };
 
   // Derived UI state

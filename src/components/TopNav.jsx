@@ -3,7 +3,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { LogOut, Gamepad2, Swords, Trophy, User as UserIcon } from 'lucide-react';
-import salpakanLogo from '../assets/salpakan_LOGO.png';
+import salpakanBanner from '../assets/salpakan_banner.png';
 
 export default function TopNav() {
   const { user, profile } = useAuth();
@@ -20,7 +20,7 @@ export default function TopNav() {
         style={{ pointerEvents: 'auto', borderRadius: '32px', border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)' }}>
         
         <Link to="/lobbies" className="d-flex align-items-center me-2 pe-3 border-end">
-          <img src={salpakanLogo} alt="Logo" style={{ height: '24px', width: 'auto' }} />
+          <img src={salpakanBanner} alt="Salpakan Banner" style={{ height: '30px', width: 'auto' }} />
         </Link>
 
         <div className="d-flex align-items-center gap-1">
