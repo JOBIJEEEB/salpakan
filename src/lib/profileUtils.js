@@ -2,9 +2,11 @@ import Swal from 'sweetalert2';
 import { getRankTier } from './rankUtils';
 
 export const showPlayerProfile = (player) => {
-  const tier = getRankTier(player.command_rating);
-  const winRate = (player.wins + player.losses) > 0 
-    ? Math.round((player.wins / (player.wins + player.losses)) * 100) 
+  const tier = getRankTier(player.command_rating || 0);
+  const playerWins = player.wins || 0;
+  const playerLosses = player.losses || 0;
+  const winRate = (playerWins + playerLosses) > 0 
+    ? Math.round((playerWins / (playerWins + playerLosses)) * 100) 
     : 0;
 
   Swal.fire({
@@ -60,11 +62,11 @@ export const showPlayerProfile = (player) => {
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; background: #F2F2F7; border-radius: 20px;">
           <div>
             <div style="font-size: 0.65rem; font-weight: 800; color: #8E8E93; text-transform: uppercase;">Wins</div>
-            <div style="font-size: 1.1rem; font-weight: 900; color: #000;">${player.wins}</div>
+            <div style="font-size: 1.1rem; font-weight: 900; color: #000;">${playerWins}</div>
           </div>
           <div style="border-left: 1px solid rgba(0,0,0,0.05); border-right: 1px solid rgba(0,0,0,0.05);">
             <div style="font-size: 0.65rem; font-weight: 800; color: #8E8E93; text-transform: uppercase;">Losses</div>
-            <div style="font-size: 1.1rem; font-weight: 900; color: #000;">${player.losses}</div>
+            <div style="font-size: 1.1rem; font-weight: 900; color: #000;">${playerLosses}</div>
           </div>
           <div>
             <div style="font-size: 0.65rem; font-weight: 800; color: #8E8E93; text-transform: uppercase;">Winrate</div>
@@ -74,8 +76,8 @@ export const showPlayerProfile = (player) => {
 
         <div style="margin-top: 24px; padding: 12px; border-radius: 16px; border: 1px dashed #C7C7CC; font-size: 0.75rem; color: #8E8E93; font-weight: 600;">
           ${player.created_at 
-            ? `Commanding since ${new Date(player.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` 
-            : 'Elite Tactical Commander'}
+            ? `Playing since ${new Date(player.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` 
+            : 'Active Tactical Commander'}
         </div>
       </div>
     `

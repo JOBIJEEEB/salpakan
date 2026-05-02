@@ -32,7 +32,7 @@ export default function Lobbies() {
     setLoading(true);
     const { data, error: fetchErr } = await supabase
       .from('matches')
-      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating, avatar_style, avatar_seed, created_at)')
+      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating, avatar_style, avatar_seed, created_at, wins, losses)')
       .eq('privacy', 'public')
       .order('created_at', { ascending: false })
       .limit(30);
