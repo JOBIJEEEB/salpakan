@@ -10,9 +10,15 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/" replace />;
   }
 
-  // Still loading profile from Supabase — avoid a premature redirect
+  // Still loading profile from Supabase — show spinner instead of blank white screen
   if (profileLoading) {
-    return null;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading…</span>
+        </div>
+      </div>
+    );
   }
 
   // Logged in but hasn't set a username yet → username setup

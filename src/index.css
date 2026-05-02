@@ -2,19 +2,24 @@
 
 :root {
   --system-blue: #007AFF;
-  --bg-color: #F5F5F7;
+  --bg-color: #FBFBFD;
   --text-primary: #1D1D1F;
   --text-secondary: #86868B;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'San Francisco', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
+  background: 
+    radial-gradient(at 0% 0%, rgba(0, 122, 255, 0.03) 0, transparent 50%),
+    radial-gradient(at 50% 0%, rgba(255, 59, 48, 0.02) 0, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(52, 199, 89, 0.03) 0, transparent 50%),
+    var(--bg-color);
+  background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -36,9 +41,14 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 1000;
+  left: 0;
+  right: 0;
+  height: 64px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
 }
 
 /* --- Standard Inputs --- */
@@ -56,7 +66,7 @@ body {
   outline: none;
   background-color: rgba(0,0,0,0.01);
   border-color: var(--system-blue);
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(5, 109, 148, 0.2);
 }
 
 .apple-input::placeholder {
@@ -79,7 +89,7 @@ body {
 }
 
 .apple-btn-primary:hover {
-  background-color: #0062cc;
+  background-color: #045877;
   transform: scale(0.98);
 }
 
@@ -110,3 +120,62 @@ body {
 .fw-semibold { font-weight: 600; }
 .fw-bold { font-weight: 700; }
 .text-muted { color: var(--text-secondary); }
+
+/* --- SweetAlert2 Apple Theme --- */
+.apple-swal {
+  border-radius: 20px !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.apple-swal-title {
+  font-weight: 700 !important;
+  letter-spacing: -0.5px !important;
+  font-size: 1.5rem !important;
+}
+.apple-swal-confirm {
+  border-radius: 24px !important;
+  font-weight: 600 !important;
+  padding: 12px 28px !important;
+}
+.apple-swal-cancel {
+  border-radius: 24px !important;
+  font-weight: 600 !important;
+  padding: 12px 28px !important;
+}
+
+/* --- Layout & Scaling --- */
+.page-container {
+  padding-top: 64px;
+  min-height: 100vh;
+}
+
+.battlefield-container {
+  min-height: 100vh;
+}
+
+.fit-screen {
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollable-y {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Hide scrollbar but keep functionality for fit-screen elements if desired */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Dynamic cellSize scaling based on viewport height */
+@media (max-height: 800px) {
+  :root { --cell-size-scale: 0.85; }
+}
+@media (max-height: 700px) {
+  :root { --cell-size-scale: 0.75; }
+}
+@media (max-height: 600px) {
+  :root { --cell-size-scale: 0.65; }
+}

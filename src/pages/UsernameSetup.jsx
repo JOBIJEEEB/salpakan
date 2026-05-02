@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { UserCircle, CheckCircle, XCircle, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
 // Validation rules
 const MIN_LEN = 3;
@@ -27,10 +28,14 @@ export default function UsernameSetup() {
   const [checking, setChecking] = useState(false);      // uniqueness debounce
   const [available, setAvailable] = useState(null);     // true | false | null
   const [submitting, setSubmitting] = useState(false);
+  const isSettingUpRef = React.useRef(false);
 
   // Guards
   if (!user) return <Navigate to="/" replace />;
-  if (!profileLoading && profile?.username) return <Navigate to="/lobbies" replace />;
+  // Only auto-redirect if they already have a username AND they aren't actively in the setup flow
+  if (!profileLoading && profile?.username && !isSettingUpRef.current) {
+    return <Navigate to="/lobbies" replace />;
+  }
 
   // Debounced uniqueness check — fires 500ms after the user stops typing
   useEffect(() => {
@@ -77,9 +82,11 @@ export default function UsernameSetup() {
     if (!available) { setServerError('That username is already taken.'); return; }
 
     setSubmitting(true);
+    isSettingUpRef.current = true;
+    
     const { error: upsertError } = await supabase
       .from('user_profiles')
-      .upsert({ id: user.id, username: trimmed }, { onConflict: 'id' });
+      .upsert({ id: user.id, username: trimmed, email: user.email }, { onConflict: 'id' });
 
     if (upsertError) {
       // Catch unique constraint race condition
@@ -89,11 +96,28 @@ export default function UsernameSetup() {
         setServerError(upsertError.message);
       }
       setSubmitting(false);
+      isSettingUpRef.current = false;
       return;
     }
 
+    await Swal.fire({
+      title: 'Username Confirmed',
+      text: `You are now known as @${trimmed}. Welcome to the game.`,
+      icon: 'success',
+      confirmButtonText: 'Start Playing',
+      confirmButtonColor: '#007AFF',
+      allowOutsideClick: false,
+      customClass: {
+        popup: 'apple-swal',
+        title: 'apple-swal-title',
+        confirmButton: 'apple-swal-confirm',
+      }
+    });
+
     await refreshProfile();
-    navigate('/lobbies', { replace: true });
+    
+    // Hard redirect to bypass any unmount/react-router transition issues
+    window.location.href = '/lobbies';
   };
 
   // Derived UI state
@@ -141,10 +165,10 @@ export default function UsernameSetup() {
         .spin { animation: spin 0.8s linear infinite; display: inline-block; }
       `}</style>
 
-      <div className="container py-5">
-        <div className="row justify-content-center align-items-center min-vh-100" style={{ marginTop: '-80px' }}>
+      <div className="page-container fit-screen">
+        <div className="container h-100 d-flex align-items-center justify-content-center">
           <div className="col-md-5 col-lg-4">
-            <div className="glass-panel p-4 p-sm-5 text-center">
+            <div className="glass-panel p-4 p-sm-5 text-center shadow-lg">
 
               {/* Avatar icon */}
               <div className="d-flex justify-content-center mb-4">
@@ -158,7 +182,7 @@ export default function UsernameSetup() {
 
               <h2 className="fw-bold mb-2" style={{ letterSpacing: '-0.5px' }}>Choose a Username</h2>
               <p className="text-muted mb-4" style={{ fontSize: '0.95rem' }}>
-                Pick your callsign. This is how other players will identify you.
+                Pick your display name. This is how other players will identify you.
               </p>
 
               <form onSubmit={handleSubmit} className="d-flex flex-column gap-3" noValidate>
@@ -168,7 +192,7 @@ export default function UsernameSetup() {
                   <input
                     type="text"
                     className="apple-input text-center"
-                    placeholder="your_callsign"
+                    placeholder="your_username"
                     value={username}
                     onChange={handleChange}
                     maxLength={MAX_LEN}
@@ -197,7 +221,7 @@ export default function UsernameSetup() {
                   disabled={!canSubmit}
                   style={{ opacity: canSubmit ? 1 : 0.5, transition: 'opacity 0.2s' }}
                 >
-                  {submitting ? 'Saving…' : 'Confirm Callsign'}
+                  {submitting ? 'Saving…' : 'Confirm Username'}
                 </button>
               </form>
 

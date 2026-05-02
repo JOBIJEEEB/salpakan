@@ -1,4 +1,3 @@
-// All piece definitions — rank is the numeric power used in combat resolution
 export const PIECE_DEFS = [
   { type: 'FIVE_STAR',  label: '5★ General',    abbr: '5★',  rank: 15, count: 1 },
   { type: 'FOUR_STAR',  label: '4★ General',    abbr: '4★',  rank: 14, count: 1 },
@@ -70,7 +69,7 @@ export function getValidMoves(board, row, col, ownerRole) {
 
 // Quick-deploy preset formations (host perspective — rows 5,6,7)
 export const QUICK_DEPLOY = {
-  label: 'Recommended Formation',
+  label: 'Pro Setup',
   positions: [
     // Row 5 (front line — Private wall + Spies on flanks)
     { row:5, col:0, type:'PRIVATE'   }, { row:5, col:1, type:'SPY'      },

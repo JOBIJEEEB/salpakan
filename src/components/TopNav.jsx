@@ -13,7 +13,7 @@ export default function TopNav() {
   };
 
   return (
-    <nav className="glass-nav py-3 px-4 d-flex justify-content-between align-items-center">
+    <nav className="glass-nav py-3 px-4 d-flex justify-content-between align-items-center fixed-top">
       <Link to="/" className="text-decoration-none d-flex align-items-center">
         <img src={salpakanLogo} alt="Salpakan Logo" style={{ height: '36px', width: 'auto' }} className="me-2" />
         <span className="fw-bold text-dark" style={{ fontSize: '1.25rem', letterSpacing: '-0.5px' }}>Salpakan</span>
@@ -23,8 +23,9 @@ export default function TopNav() {
         {user ? (
           <>
             <NavLink to="/lobbies" className={({isActive}) => `text-decoration-none fw-medium ${isActive ? 'text-primary' : 'text-dark'}`}>LOBBIES</NavLink>
-            <NavLink to="/vs-ai" className={({isActive}) => `text-decoration-none fw-medium ${isActive ? 'text-primary' : 'text-dark'}`}>VS AI</NavLink>
+            <NavLink to="/practice" className={({isActive}) => `text-decoration-none fw-medium ${isActive ? 'text-primary' : 'text-dark'}`}>PRACTICE</NavLink>
             <NavLink to="/leaderboard" className={({isActive}) => `text-decoration-none fw-medium ${isActive ? 'text-primary' : 'text-dark'}`}>LEADERBOARD</NavLink>
+            <NavLink to="/account" className={({isActive}) => `text-decoration-none fw-medium ${isActive ? 'text-primary' : 'text-dark'}`}>ACCOUNT</NavLink>
           </>
         ) : null}
         
