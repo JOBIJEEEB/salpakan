@@ -4,6 +4,7 @@ import { Plus, Lock, Globe, LogIn, RefreshCw, Trophy, Users, Shield, Target, Clo
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { getRankTier, getNextTier, getProgressToNext, formatRR } from '../lib/rankUtils';
+import { showPlayerProfile } from '../lib/profileUtils';
 import Swal from 'sweetalert2';
 
 function generateCode() {
@@ -31,7 +32,7 @@ export default function Lobbies() {
     setLoading(true);
     const { data, error: fetchErr } = await supabase
       .from('matches')
-      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating, avatar_style, avatar_seed)')
+      .select('id, host_id, privacy, lobby_code, status, created_at, game_state, user_profiles!matches_host_id_fkey(username, command_rating, avatar_style, avatar_seed, created_at)')
       .eq('privacy', 'public')
       .order('created_at', { ascending: false })
       .limit(30);
@@ -148,7 +149,8 @@ export default function Lobbies() {
                 <div className="d-flex align-items-center gap-4 animate-slide-in">
                   <div className="position-relative">
                     <div className="avatar-ring-animated" />
-                    <div className="lobby-profile-avatar-lg shadow-xl">
+                    <div className="lobby-profile-avatar-lg shadow-xl cursor-pointer transition-all hover-scale" 
+                         onClick={() => showPlayerProfile(profile)}>
                       <img
                         src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`}
                         alt="Profile"
@@ -361,14 +363,15 @@ export default function Lobbies() {
                         </div>
 
                         <h6 className="fw-bold mb-1 text-truncate" title={name}>{name}</h6>
-                        <div className="d-flex align-items-center gap-2 mb-4">
+                        <div className="d-flex align-items-center gap-2 mb-4 cursor-pointer hover-bg-light p-2 rounded-3 transition-all"
+                             onClick={() => showPlayerProfile(m.user_profiles)}>
                           <div className="rounded-circle overflow-hidden border shadow-inner" style={{ width: 28, height: 28, background: '#fff' }}>
                             <img src={`https://api.dicebear.com/7.x/${m.user_profiles?.avatar_style || 'notionists'}/svg?seed=${m.user_profiles?.avatar_seed || m.user_profiles?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="Avatar" style={{ width: '100%', height: '100%' }} />
                           </div>
                           <div className="rounded-1 overflow-hidden shadow-sm" style={{ width: 24, height: 24, background: '#fff' }}>
                             <img src={hostTier.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
                           </div>
-                          <span className="text-muted" style={{ fontSize: '0.8rem' }}>{m.user_profiles?.username} ({formatRR(hostRating)} RR)</span>
+                          <span className="text-muted fw-bold" style={{ fontSize: '0.8rem' }}>{m.user_profiles?.username}</span>
                         </div>
 
                         <button onClick={() => handleJoinPublic(m.id, m.host_id)}

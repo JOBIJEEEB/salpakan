@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getRankTier, getNextTier, getProgressToNext, formatRR, RANK_TIERS } from '../lib/rankUtils';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { showPlayerProfile } from '../lib/profileUtils';
 
 function RankInfoModal({ isOpen, onClose }) {
   if (!isOpen) return null;
@@ -41,7 +42,11 @@ function PlayerRow({ rank, player }) {
     ? Math.round((player.wins / (player.wins + player.losses)) * 100) : 0;
 
   return (
-    <div className="d-flex align-items-center gap-3 px-3 py-2 transition-all hover-bg-light" style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+    <div 
+      className="d-flex align-items-center gap-3 px-3 py-2 transition-all hover-bg-light cursor-pointer" 
+      onClick={() => showPlayerProfile(player)}
+      style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}
+    >
       <div style={{ width: 40, textAlign: 'center', color: '#86868B', fontWeight: 700, fontSize: '0.9rem' }}>
         {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
       </div>
@@ -75,7 +80,7 @@ export default function Leaderboard() {
   useEffect(() => {
     supabase
       .from('user_profiles')
-      .select('id, username, command_rating, wins, losses, draws, avatar_style, avatar_seed')
+      .select('id, username, command_rating, wins, losses, draws, avatar_style, avatar_seed, created_at')
       .order('command_rating', { ascending: false })
       .limit(100)
       .then(({ data }) => {
