@@ -6,6 +6,7 @@ import GameBoard from '../components/GameBoard';
 import Swal from 'sweetalert2';
 import { ROWS, COLS } from '../lib/gameConstants';
 import { calculateElo } from '../lib/rankUtils';
+import { Gamepad2 } from 'lucide-react';
 
 export default function ActiveMatch() {
   const { id } = useParams();
@@ -23,6 +24,7 @@ export default function ActiveMatch() {
   const [opponentName, setOpponentName] = useState('Opponent');
   const [isReady,      setIsReady]      = useState(false);
   const matchFinishedRef = useRef(false);
+  const swalShownRef = useRef(false);
 
   // ── Shared fetch + apply ─────────────────────────────────────────────────────
   const applyMatchData = (data) => {
@@ -121,12 +123,18 @@ export default function ActiveMatch() {
 
   // ── SweetAlert for win/loss ───────────────────────────────────────────────
   useEffect(() => {
-    if (!winner || !role) return;
+    if (!winner || !role || swalShownRef.current) return;
+    swalShownRef.current = true;
+    
     const isWin = winner === role;
+    const isTie = winner === 'tie';
+    
     Swal.fire({
-      title: isWin ? 'Victory' : 'Defeated',
-      text: isWin ? 'You outmaneuvered your opponent!' : `${opponentName} captured your flag.`,
-      icon: isWin ? 'success' : 'error',
+      title: isWin ? 'Victory' : (isTie ? 'Draw' : 'Defeated'),
+      text: isWin ? 'You outmaneuvered your opponent!' 
+           : (isTie ? 'Both flags were eliminated in a final stand.' 
+           : `${opponentName} captured your flag.`),
+      icon: isWin ? 'success' : (isTie ? 'info' : 'error'),
       confirmButtonText: 'Back to Lobbies',
       confirmButtonColor: isWin ? '#34C759' : '#056d94',
       customClass: {
@@ -134,12 +142,33 @@ export default function ActiveMatch() {
         title: 'apple-swal-title',
         confirmButton: 'apple-swal-confirm',
       }
-    }).then(() => {
-      setTimeout(() => {
-        navigate('/lobbies', { replace: true });
-      }, 100);
+    }).then(async () => {
+      // Final Sealer safeguard for the host
+      if (role === 'host' && match?.status === 'in_progress' && winner) {
+        await supabase.from('matches').update({ 
+          status: 'completed', 
+          winner: winner,
+          winner_id: winner === 'host' ? match.host_id : (winner === 'guest' ? match.guest_id : null)
+        }).eq('id', id);
+      }
+      matchFinishedRef.current = true;
+      navigate('/lobbies', { replace: true });
     });
-  }, [winner]);
+  }, [winner, role, opponentName]);
+
+  // ── Sealer: Host ensures status=completed if winner exists ────────────────
+  useEffect(() => {
+    if (winner && match?.status === 'in_progress' && role === 'host') {
+      console.log('Sealer: Host finalizing match status...');
+      supabase.from('matches').update({ 
+        status: 'completed', 
+        winner: winner,
+        winner_id: winner === 'host' ? match.host_id : (winner === 'guest' ? match.guest_id : null)
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.error('Sealer error:', error);
+      });
+    }
+  }, [winner, match?.status, role]);
 
   // ── Process Elo Update ────────────────────────────────────────────────────
   const processEloUpdate = async (finalWinnerRole) => {
@@ -183,17 +212,28 @@ export default function ActiveMatch() {
   };
 
   // ── Persist every board move to Supabase ─────────────────────────────────
-  const syncToSupabase = async (newBoard, flagCaptured, latestLog) => {
+  const syncToSupabase = async (newBoard, flagCaptured, latestLog, winnerOfMove, nextFb) => {
     if (matchFinishedRef.current) return;
-    const nextTurn = flagCaptured ? currentTurn : (currentTurn === 'host' ? 'guest' : 'host');
-    const finalWinner = flagCaptured ? role : winner;
+    
+    const finalWinner = flagCaptured ? winnerOfMove : winner;
     const nextStatus = finalWinner ? 'completed' : 'in_progress';
+    const nextTurn = finalWinner ? currentTurn : (currentTurn === 'host' ? 'guest' : 'host');
     
-    const { data: matchData, error: fetchErr } = await supabase.from('matches').select('status, game_state').eq('id', id).single();
+    // Set local state immediately for instant feedback
+    if (finalWinner) {
+      setWinner(finalWinner);
+      matchFinishedRef.current = true;
+    }
+
+    const { data: matchData, error: fetchErr } = await supabase.from('matches').select('status, game_state, host_id, guest_id').eq('id', id).single();
     if (fetchErr) { console.error('syncToSupabase fetch error:', fetchErr); return; }
-    if (matchData?.status === 'completed') { console.log('syncToSupabase: Match already finished, skipping.'); return; }
-    const currentGs = matchData?.game_state || {};
     
+    if (matchData?.status === 'completed') { 
+      matchFinishedRef.current = true;
+      return; 
+    }
+    
+    const currentGs = matchData?.game_state || {};
     const nextGs = {
       ...currentGs,
       board: newBoard,
@@ -201,28 +241,34 @@ export default function ActiveMatch() {
       current_turn: nextTurn,
       battle_log: latestLog || battleLog,
       winner: finalWinner,
-      winner_id: finalWinner === 'host' ? (matchData?.host_id || match?.host_id) : (finalWinner === 'guest' ? (matchData?.guest_id || match?.guest_id) : null),
+      flag_breakthrough: nextFb || currentGs.flag_breakthrough,
+      winner_id: finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null),
       turn_start_at: new Date().toISOString()
     };
     
-    let { error: updErr } = await supabase.from('matches').update({
+    const wId = finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null);
+    
+    console.log('Final Syncing Result:', { finalWinner, wId });
+
+    // Try full update first
+    const { error: updErr } = await supabase.from('matches').update({
       status: nextStatus,
       game_state: nextGs,
+      winner: finalWinner,
+      winner_id: wId
     }).eq('id', id);
 
     if (updErr) {
-      console.warn('syncToSupabase full update failed, trying fallback (game_state only):', updErr);
+      console.warn('Full update failed, falling back to game_state only:', updErr);
       const { error: fallbackErr } = await supabase.from('matches').update({
         game_state: nextGs,
       }).eq('id', id);
-      updErr = fallbackErr;
+      
+      if (fallbackErr) console.error('syncToSupabase final failure:', fallbackErr);
     }
 
-    if (updErr) console.error('syncToSupabase final error:', updErr);
-    else if (nextStatus === 'completed') matchFinishedRef.current = true;
-
-    if (finalWinner && !updErr) {
-      await processEloUpdate(finalWinner);
+    if (finalWinner) {
+      if (finalWinner !== 'tie') await processEloUpdate(finalWinner);
     }
   };
   
@@ -279,67 +325,51 @@ export default function ActiveMatch() {
   };
 
   const handleForfeit = async () => {
-    if (winner) { navigate('/lobbies', { replace: true }); return; }
+    if (winner || matchFinishedRef.current) { 
+      navigate('/lobbies', { replace: true }); 
+      return; 
+    }
 
     const isStarting = (phase === 'deployment' || !match?.guest_id);
     const title = isStarting ? 'Leave Lobby?' : 'Forfeit Match?';
     const text  = isStarting 
-      ? 'Are you sure you want to leave? This lobby will be closed and it will NOT count as a loss.'
-      : 'Are you sure you want to forfeit? This will count as a DEFEAT and your rating will decrease.';
+      ? 'Are you sure you want to leave? This lobby will be closed.'
+      : 'Are you sure you want to forfeit? This will count as a DEFEAT.';
 
     const confirm = await Swal.fire({
-      title,
-      text,
-      icon: 'warning',
-      showCancelButton: true,
+      title, text, icon: 'warning', showCancelButton: true,
       confirmButtonText: isStarting ? 'Yes, leave' : 'Yes, forfeit',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#FF3B30',
-      cancelButtonColor: '#86868B',
-      customClass: { 
-        popup: 'apple-swal', 
-        title: 'apple-swal-title', 
-        confirmButton: 'apple-swal-confirm',
-        cancelButton: 'apple-swal-cancel' 
-      }
+      cancelButtonText: 'Cancel', confirmButtonColor: '#FF3B30', cancelButtonColor: '#86868B',
+      customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm', cancelButton: 'apple-swal-cancel' }
     });
 
     if (confirm.isConfirmed) {
       const opponentRole = role === 'host' ? 'guest' : 'host';
-      try {
-        const { data: matchData } = await supabase.from('matches').select('status, game_state, host_id, guest_id').eq('id', id).single();
-        
-        if (matchData?.status === 'completed') {
-          matchFinishedRef.current = true;
-          navigate('/lobbies', { replace: true });
-          return;
-        }
-        
-        const currentGs = matchData?.game_state || {};
-        const hId = matchData?.host_id || match?.host_id;
-        const gId = matchData?.guest_id || match?.guest_id;
+      const finalWinner = isStarting ? null : opponentRole;
+      
+      const { data: matchData } = await supabase.from('matches').select('host_id, guest_id, game_state').eq('id', id).single();
+      const currentGs = matchData?.game_state || {};
+      
+      const newGs = {
+        ...currentGs,
+        winner: finalWinner,
+        winner_id: finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null),
+        battle_log: [...(currentGs.battle_log || []), `${role.toUpperCase()} ${isStarting ? 'left' : 'forfeited'}.`]
+      };
 
-        const newGs = {
-          ...currentGs,
-          winner: isStarting ? null : opponentRole,
-          winner_id: isStarting ? null : (opponentRole === 'host' ? hId : gId),
-          battle_log: [...(currentGs.battle_log || []), `${role.toUpperCase()} ${isStarting ? 'left the lobby' : 'forfeited the match'}.`]
-        };
+      const wId = finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null);
 
-        let { error: updErr } = await supabase.from('matches').update({
-          status: isStarting ? 'cancelled' : 'completed',
-          game_state: newGs,
-        }).eq('id', id);
+      const { error: updErr } = await supabase.from('matches').update({
+        status: isStarting ? 'cancelled' : 'completed',
+        game_state: newGs,
+        winner: finalWinner,
+        winner_id: wId
+      }).eq('id', id);
 
-        if (updErr) {
-          Swal.fire('Error', 'Could not update match status. Try again.', 'error');
-        } else {
-          matchFinishedRef.current = true;
-          if (!isStarting) await processEloUpdate(opponentRole);
-          navigate('/lobbies', { replace: true });
-        }
-      } catch (err) {
-        console.error('Forfeit catch block:', err);
+      if (!updErr) {
+        matchFinishedRef.current = true;
+        if (!isStarting) await processEloUpdate(opponentRole);
+        navigate('/lobbies', { replace: true });
       }
     }
   };
@@ -355,31 +385,66 @@ export default function ActiveMatch() {
   }
 
   // ── Waiting for opponent (Host) ────────────────────────────────────────────
-  // Use match.guest_id — updated via realtime when guest joins
   if (!match.guest_id && role === 'host') {
     return (
-      <div className="container py-5">
-        <div className="glass-panel p-5 text-center mt-4" style={{ maxWidth: 480, margin: '0 auto' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
-          <h4 className="fw-bold mb-2">Waiting for Opponent</h4>
-          <p className="text-muted mb-1">Share this code with your friend:</p>
-          <div style={{
-            fontFamily: 'monospace', fontSize: '2.2rem', letterSpacing: '10px',
-            fontWeight: 700, color: 'var(--system-blue)', margin: '1.5rem 0',
-          }}>
-            {lobbyCode}
+      <div className="page-container fit-screen d-flex align-items-center justify-content-center">
+        <div className="container" style={{ maxWidth: 600 }}>
+          <div className="glass-panel p-5 text-center position-relative overflow-hidden shadow-lg" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.05)' }}>
+            <div className="position-relative z-1">
+              <div className="mb-4 position-relative d-inline-block">
+                <div className="rounded-circle overflow-hidden border border-white border-4 shadow-sm" style={{ width: 100, height: 100, background: '#fff' }}>
+                  <img 
+                    src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
+                    alt="Avatar" 
+                    style={{ width: '100%', height: '100%' }} 
+                  />
+                </div>
+                <div className="position-absolute bottom-0 end-0 bg-primary rounded-circle border border-white border-2 pulse-glow" style={{ width: 24, height: 24 }} />
+              </div>
+
+              <h3 className="fw-bold mb-1" style={{ letterSpacing: '-1px' }}>Waiting for Opponent</h3>
+              <p className="text-muted mb-4">Your tactical lobby is ready. Share the code to begin.</p>
+              
+              <div className="p-4 rounded-4 mb-4" style={{ background: '#F5F5F7', border: '1px dashed rgba(0,0,0,0.1)' }}>
+                <div className="text-muted small fw-bold mb-2" style={{ letterSpacing: '2px' }}>LOBBY CODE</div>
+                <div style={{
+                  fontFamily: '"SF Mono", "Fira Code", monospace', fontSize: '3rem', letterSpacing: '8px',
+                  fontWeight: 800, color: 'var(--system-blue)', textShadow: '0 4px 12px rgba(0, 122, 255, 0.15)'
+                }}>
+                  {lobbyCode}
+                </div>
+              </div>
+
+              <div className="d-flex flex-column gap-3 align-items-center">
+                <div className="d-flex align-items-center gap-2 text-muted small">
+                  <div className="spinner-border spinner-border-sm opacity-50" />
+                  <span>Awaiting challenger join…</span>
+                </div>
+                
+                <button className="btn btn-link text-danger text-decoration-none fw-bold small mt-3"
+                  onClick={async () => {
+                    await supabase.from('matches').update({ status: 'cancelled' }).eq('id', id);
+                    navigate('/lobbies');
+                  }}>
+                  Cancel Matchmaking
+                </button>
+              </div>
+            </div>
+
+            <div style={{ position: 'absolute', top: -50, right: -50, opacity: 0.03, pointerEvents: 'none' }}>
+              <Gamepad2 size={250} />
+            </div>
           </div>
-          <p className="text-muted mb-4" style={{ fontSize: '0.8rem' }}>
-            This page will automatically update when they join.
-          </p>
-          <button className="btn btn-outline-danger btn-sm rounded-pill"
-            onClick={async () => {
-              await supabase.from('matches').update({ status: 'cancelled' }).eq('id', id);
-              navigate('/lobbies');
-            }}>
-            Cancel Lobby
-          </button>
         </div>
+
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes pulse-glow {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 122, 255, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
+          }
+          .pulse-glow { animation: pulse-glow 2s infinite; }
+        `}} />
       </div>
     );
   }

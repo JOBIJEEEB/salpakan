@@ -2,12 +2,12 @@
 
 :root {
   --system-blue: #007AFF;
-  --bg-color: #FBFBFD;
+  --bg-color: #F5F5F7;
   --text-primary: #1D1D1F;
   --text-secondary: #86868B;
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
 body {

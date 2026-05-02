@@ -38,6 +38,7 @@ export function buildPieceSet(owner) {
 
 // Returns 'attacker' | 'defender' | 'tie'
 export function resolveCombat(attackerType, defenderType) {
+  if (attackerType === defenderType) return 'tie';
   if (attackerType === 'SPY') {
     if (defenderType === 'PRIVATE') return 'defender';
     return 'attacker'; // Spy beats all officers + Flag

@@ -249,6 +249,7 @@ export default function GameBoard({
   const [swapFirst, setSwapFirst] = useState(null);
   const [preset, setPreset]       = useState('');
   const [cellSize, setCellSize]   = useState(64);
+  const [winnerOfMoveLocal, setWinnerOfMoveLocal] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -278,7 +279,7 @@ export default function GameBoard({
 
   // ── Sync Timer with Server Timestamp ──────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'battle' || winner) return;
+    if (phase !== 'battle' || winner || winnerOfMoveLocal) return;
 
     const interval = setInterval(() => {
       const duration = getDuration(gameMode);
@@ -446,7 +447,7 @@ export default function GameBoard({
   };
 
   const handleBattleClick = (row, col) => {
-    if (!isMyTurn || winner) return;
+    if (!isMyTurn || winner || winnerOfMoveLocal) return;
     const cell = board[row][col];
     if (selectedCell) {
       const [sr, sc] = selectedCell;
@@ -454,41 +455,41 @@ export default function GameBoard({
       if (isValid) {
         const next = board.map(r => [...r]);
         const mover = next[sr][sc], target = next[row][col]; let log = '';
-        let flagCaptured = false;
+        let flagCaptured = false; let result = null;
         if (!target) {
           next[row][col] = mover; next[sr][sc] = null;
-          log = `HOST: Movement to ${coord(row,col)}.`;
+          log = `${playerRole.toUpperCase()}: Movement to ${coord(row,col)}.`;
           if (mover.type === 'FLAG' && row === enemyBackRow) {
             const fb = { ...flagBreakthrough };
             if (!fb[playerRole]) { fb[playerRole] = currentTurn; setFlagBreakthrough(fb); log += ' 🏁'; }
             else { 
-              if (!onMove) setWinner(playerRole); 
+              setWinner(playerRole); 
               flagCaptured = true; 
               log += ' FLAG BREAKTHROUGH!'; 
             }
           }
         } else {
-          const result = resolveCombat(mover.type, target.type);
+          result = resolveCombat(mover.type, target.type);
           if (result === 'attacker') {
             next[row][col] = mover; next[sr][sc] = null;
-            log = `HOST: Attack at ${coord(row,col)} successful.`;
+            log = `${playerRole.toUpperCase()}: Attack at ${coord(row,col)} successful.`;
             if (target.type === 'FLAG') { 
-              if (!onMove) setWinner(playerRole); 
+              setWinner(playerRole); 
               flagCaptured = true; 
               log += ' (FLAG CAPTURED!)'; 
             }
           } else if (result === 'defender') {
-            next[sr][sc] = null; log = `GUEST: Attack at ${coord(row,col)} failed.`;
+            next[sr][sc] = null; log = `${playerRole.toUpperCase()}: Attack at ${coord(row,col)} failed.`;
             if (mover.type === 'FLAG') { 
               const w = playerRole === 'host' ? 'guest' : 'host';
-              if (!onMove) setWinner(w); 
+              setWinner(w); 
               flagCaptured = true; 
-              log += ' (FLAG LOST!)'; 
+              log += ' (FLAG CAPTURED!)'; 
             }
           } else {
             next[row][col] = null; next[sr][sc] = null; log = `TIE: Both pieces eliminated at ${coord(row,col)}.`;
             if (mover.type === 'FLAG' || target.type === 'FLAG') { 
-              if (!onMove) setWinner('tie'); 
+              setWinner('tie'); 
               flagCaptured = true; 
             }
           }
@@ -497,8 +498,29 @@ export default function GameBoard({
         setBoard(next);
         const updatedLog = [...battleLog, log];
         setBattleLog(updatedLog);
+        
+        let winnerOfMove = null;
+        let nextFb = { ...flagBreakthrough };
+
+        if (flagCaptured) {
+          if (mover.type === 'FLAG' && row === enemyBackRow) winnerOfMove = playerRole;
+          else if (target?.type === 'FLAG' && result === 'attacker') winnerOfMove = playerRole;
+          else if (mover.type === 'FLAG' && result === 'defender') winnerOfMove = playerRole === 'host' ? 'guest' : 'host';
+          else if (mover.type === 'FLAG' || (target && target.type === 'FLAG')) winnerOfMove = 'tie';
+
+          // Reset breakthrough if flag was lost
+          if (mover.type === 'FLAG' && result !== 'attacker') nextFb[playerRole] = null;
+          if (target?.type === 'FLAG' && result === 'attacker') {
+            const enemyRole = playerRole === 'host' ? 'guest' : 'host';
+            nextFb[enemyRole] = null;
+          }
+          setFlagBreakthrough(nextFb);
+          setWinnerOfMoveLocal(winnerOfMove);
+        }
+
         if (!flagCaptured) setCurrentTurn(currentTurn === 'host' ? 'guest' : 'host');
-        setSelectedCell(null); setValidMoves([]); onMove && onMove(next, flagCaptured, updatedLog);
+        setSelectedCell(null); setValidMoves([]); 
+        onMove && onMove(next, flagCaptured, updatedLog, winnerOfMove, nextFb);
       } else {
         if (cell?.owner === playerRole) { setSelectedCell([row,col]); setValidMoves(getValidMoves(board,row,col,playerRole)); }
         else { setSelectedCell(null); setValidMoves([]); }
@@ -538,24 +560,15 @@ export default function GameBoard({
             <button className="btn btn-outline-primary btn-sm rounded-pill px-3" 
               style={{ fontWeight: 600, fontSize: '0.8rem' }} 
               title="Save current setup"
-              onClick={savePreset}>💾 Save</button>
+              onClick={savePreset}>Create Preset</button>
           </div>
         </div>
-        <button 
-          disabled={unplaced.length > 0}
-          onClick={() => setPhase('battle')}
-          className="transition-all"
-          style={{ 
-            background: unplaced.length === 0 ? '#34C759' : 'rgba(5, 109, 148, 0.1)', 
-            color: unplaced.length === 0 ? '#fff' : '#056d94', 
-            borderRadius: 12,
-            padding: '8px 20px', fontSize: '0.85rem', fontWeight: 700, 
-            border: unplaced.length === 0 ? 'none' : '1px solid rgba(5,109,148,0.2)',
-            cursor: unplaced.length === 0 ? 'pointer' : 'default',
-            boxShadow: unplaced.length === 0 ? '0 4px 12px rgba(52,199,89,0.3)' : 'none'
-          }}>
-          {unplaced.length === 0 ? '🚀 CONFIRM SETUP' : `RESERVES: ${unplaced.length} PIECES`}
-        </button>
+        <div className="d-flex align-items-center gap-3">
+          <div className="glass-panel d-flex align-items-center gap-2 px-3 py-1 border-0 shadow-sm" style={{ background: 'rgba(255,255,255,0.5)' }}>
+            <div className="spinner-grow spinner-grow-sm text-primary" role="status" style={{ width: 8, height: 8 }}></div>
+            <span className="text-muted small fw-medium">Deployment Phase</span>
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1100 ? '1fr' : 'auto 1fr', gap: 30, alignItems: 'start' }}>

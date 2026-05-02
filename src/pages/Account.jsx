@@ -22,8 +22,11 @@ function StatCard({ label, value, icon, color }) {
 function MatchItem({ match, userId }) {
   const isHost = match.host_id === userId;
   const opponent = isHost ? match.guest_profiles?.username : match.host_profiles?.username;
-  const isWinner = match.winner_id === userId;
-  const isDraw = !match.winner_id && match.status === 'completed';
+  const finalWinner = match.winner || match.game_state?.winner;
+  const winnerId = match.winner_id || match.game_state?.winner_id;
+  
+  const isWinner = winnerId === userId;
+  const isDraw = (!winnerId && (match.status === 'completed' || match.game_state?.winner === 'tie'));
   const isCancelled = match.status === 'cancelled';
   
   const date = new Date(match.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
