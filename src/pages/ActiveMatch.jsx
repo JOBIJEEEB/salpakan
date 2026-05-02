@@ -210,8 +210,8 @@ export default function ActiveMatch() {
     
     if (!hostP || !guestP) return;
 
-    const hostCR = hostP.command_rating ?? 1000;
-    const guestCR = guestP.command_rating ?? 1000;
+    const hostCR = hostP.command_rating ?? 0;
+    const guestCR = guestP.command_rating ?? 0;
     let hostScore = 0.5; // tie
     if (finalWinnerRole === 'host') hostScore = 1;
     else if (finalWinnerRole === 'guest') hostScore = 0;

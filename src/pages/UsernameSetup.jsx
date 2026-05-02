@@ -86,7 +86,15 @@ export default function UsernameSetup() {
     
     const { error: upsertError } = await supabase
       .from('user_profiles')
-      .upsert({ id: user.id, username: trimmed, email: user.email }, { onConflict: 'id' });
+      .upsert({ 
+        id: user.id, 
+        username: trimmed, 
+        email: user.email,
+        command_rating: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0
+      }, { onConflict: 'id' });
 
     if (upsertError) {
       // Catch unique constraint race condition
