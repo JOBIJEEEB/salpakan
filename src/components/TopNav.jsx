@@ -19,12 +19,8 @@ export default function TopNav() {
       <nav className="glass-panel px-3 py-2 d-flex align-items-center gap-2 shadow-lg" 
         style={{ pointerEvents: 'auto', borderRadius: '32px', border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)' }}>
         
-        <Link to="/lobbies" className="d-flex align-items-center me-2 pe-3 border-end position-relative">
+        <Link to="/lobbies" className="d-flex align-items-center me-2 pe-3 border-end">
           <img src={salpakanBanner} alt="Salpakan Banner" style={{ height: '30px', width: 'auto' }} />
-          <span className="ms-2 px-2 py-0 rounded-pill fw-black" 
-                style={{ fontSize: '0.6rem', background: 'rgba(0,0,0,0.05)', color: '#86868B', letterSpacing: '0.5px' }}>
-            V1.2
-          </span>
         </Link>
 
         <div className="d-flex align-items-center gap-1">

@@ -140,7 +140,7 @@ export default function Lobbies() {
         {/* ── COMMAND DASHBOARD HEADER ────────────────────────────────────────── */}
         <div className="dashboard-header-premium mb-4 pb-4">
           <div className="dashboard-mesh-bg" />
-          
+
           <div className="container position-relative z-1 py-4 py-lg-5">
             <div className="row align-items-center g-4">
               {/* Profile Side */}
@@ -149,19 +149,19 @@ export default function Lobbies() {
                   <div className="position-relative">
                     <div className="avatar-ring-animated" />
                     <div className="lobby-profile-avatar-lg shadow-xl">
-                      <img 
-                        src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
-                        alt="Profile" 
+                      <img
+                        src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`}
+                        alt="Profile"
                       />
                     </div>
                   </div>
-                  
+
                   <div>
-                    <h1 className="display-6 fw-bold mb-1 header-gradient-text" style={{ letterSpacing: '-2px' }}>
-                      Game Center
+                    <h1 className="text-start display-6 fw-bold mb-0 header-gradient-text" style={{ letterSpacing: '-2px' }}>
+                      Game Lobby
                     </h1>
                     <div className="d-flex align-items-center gap-2">
-                      <span className="text-muted fw-medium small">Tactical Commander <b>{profile?.username}</b></span>
+                      <span className="text-muted fw-medium small">Player: <b>{profile?.username}</b></span>
                     </div>
                   </div>
                 </div>
@@ -171,8 +171,8 @@ export default function Lobbies() {
               <div className="col-lg-8">
                 <div className="d-flex flex-wrap align-items-center justify-content-lg-end gap-3 animate-fade-in-delayed">
                   {/* Hero Rank Module (Compact) */}
-                  <div className="hero-rank-module p-2 d-flex align-items-center gap-3" 
-                       style={{ minWidth: 380, background: 'rgba(255,255,255,0.95)' }}>
+                  <div className="hero-rank-module p-2 d-flex align-items-center gap-3"
+                    style={{ minWidth: 380, background: 'rgba(255,255,255,0.95)' }}>
                     <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 32, height: 32, background: '#fff', border: '1px solid #000', flexShrink: 0 }}>
                       <img src={tier?.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
                     </div>
@@ -186,9 +186,9 @@ export default function Lobbies() {
                         </span>
                       </div>
                       <div style={{ background: '#F2F2F7', borderRadius: 999, height: 5, border: '1px solid rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                        <div style={{ 
-                          width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${tier?.color || '#007AFF'} 0%, #007AFF 100%)`, 
-                          transition: 'width 1.5s cubic-bezier(0.165, 0.84, 0.44, 1)' 
+                        <div style={{
+                          width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${tier?.color || '#007AFF'} 0%, #007AFF 100%)`,
+                          transition: 'width 1.5s cubic-bezier(0.165, 0.84, 0.44, 1)'
                         }} />
                       </div>
                     </div>

@@ -1,36 +1,59 @@
 # Salpakan Online (Game of the Generals)
-**Version 1.2**
+![Version](https://img.shields.io/badge/version-1.2-blue?style=for-the-badge)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-Salpakan Online is a premium, digital recreation of the classic Philippine board game, **Game of the Generals**. Engineered by **JB Hernandez**, this platform brings tactical deduction and hidden-information strategy into the modern era with high-stakes competitive rankings and elite AI training modules.
+Salpakan Online is a digital recreation of the classic Philippine board game, **Game of the Generals**. Developed by **JB Hernandez**, this platform brings tactical deduction and hidden-information strategy into the modern era with competitive rankings and elite AI training modules.
 
 ## 🚀 Project Overview
-Salpakan is a game of "mental combat" where two commanders lead their armies to capture the enemy flag. Every piece is hidden, and success depends on memory, deduction, and psychological warfare. This implementation features:
-- **Live Matchmaking**: Host or join real-time tactical encounters.
-- **Elite RR System**: A Valorant-inspired "Rank Rating" (RR) system with 100-RR rank intervals.
-- **Philippine Cultural Ranks**: A 7-tier hierarchy from *Mandirigma* to the legendary *Bayani*.
-- **Command Training**: Multi-tier AI practice against units like *SAF Elite* and *Scout Rangers*.
-- **Tactical Dashboard**: A high-contrast "Command Center" interface with real-time stat tracking.
+Salpakan is a game of "mental combat" where two commanders lead their armies to capture the enemy flag. Every piece is hidden, and success depends on memory, deduction, and psychological warfare.
+
+### Key Features
+- ⚔️ **Live Matchmaking**: Host or join real-time tactical encounters.
+- 📈 **RR System**: A competitive "Rank Rating" (RR) system with 100-RR intervals.
+- 🇵🇭 **Cultural Ranks**: A 7-tier hierarchy from *Mandirigma* to *Bayani*.
+- 🤖 **Command Training**: Multi-tier AI practice against units like *SAF Elite* and *Scout Rangers*.
+- 🖥️ **Command Center**: A high-contrast dashboard with real-time stat tracking.
 
 ## 🛠️ Tech Stack
-- **Frontend**: [React.js](https://reactjs.org/) (Vite)
-- **State Management**: React Context API
-- **Database & Auth**: [Supabase](https://supabase.com/) (PostgreSQL + Realtime Subscriptions)
+
+### Frontend & UI
+- **Framework**: [React.js](https://reactjs.org/) (Vite)
 - **Icons**: [Lucide React](https://lucide.dev/)
-- **UI Components**: [SweetAlert2](https://sweetalert2.github.io/) (Custom Apple-inspired styling)
+- **Components**: [SweetAlert2](https://sweetalert2.github.io/)
 - **Styling**: Vanilla CSS (Custom Glassmorphism Design System)
 
-## 🔌 APIs & Services
-- **Supabase API**: Handles all persistent data, real-time match state synchronization, and secure authentication.
-- **Dicebear API**: Procedural generation of tactical commander avatars and rank icons.
+### Backend & Infrastructure
+- **Service**: [Supabase](https://supabase.com/) (PostgreSQL + Realtime)
+- **Auth**: Supabase Auth (Email/Password)
+- **Avatars**: [Dicebear API](https://dicebear.com/) (Procedural generation)
 
-## 💂 Elite Rank Hierarchy
-1. **Mandirigma** (0-99 RR)
-2. **Lakan** (100-199 RR)
-3. **Datu** (200-299 RR)
-4. **Maharlika** (300-399 RR)
-5. **Heneral** (400-499 RR)
-6. **Supremo** (500-599 RR)
-7. **Bayani** (600+ RR)
+## 📂 Project Structure
+```text
+salpakan/
+├── src/
+│   ├── assets/       # Visual assets & banners
+│   ├── components/   # Reusable UI components (TopNav, Footer, etc.)
+│   ├── context/      # Auth & Global State providers
+│   ├── lib/          # Utilities, constants & game logic (RankUtils, GameBoard)
+│   ├── pages/        # Main application screens (Lobbies, Match, Tutorial)
+│   ├── App.jsx       # Main router & layout controller
+│   └── main.jsx      # Entry point
+├── public/           # Static files
+└── index.html        # HTML Template
+```
+
+## 💂 Rank Hierarchy
+| Rank | Threshold | Title |
+| :--- | :--- | :--- |
+| 1 | 0-99 RR | Mandirigma |
+| 2 | 100-199 RR | Lakan |
+| 3 | 200-299 RR | Datu |
+| 4 | 300-399 RR | Maharlika |
+| 5 | 400-499 RR | Heneral |
+| 6 | 500-599 RR | Supremo |
+| 7 | 600+ RR | Bayani |
 
 ---
-Developed and Engineered by **JB Hernandez** © 2026
+Developed by **JB Hernandez** © 2026
