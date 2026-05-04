@@ -56,7 +56,7 @@ function PlayerRow({ rank, player }) {
       </div>
       {/* PLAYER AVATAR second */}
       <div className="rounded-circle overflow-hidden shadow-inner border" style={{ width: 32, height: 32, background: '#fff' }}>
-        <img src={`https://api.dicebear.com/7.x/${player.avatar_style || 'notionists'}/svg?seed=${player.avatar_seed || player.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="Avatar" style={{ width: '100%', height: '100%' }} />
+        <img src={`https://api.dicebear.com/9.x/${player.avatar_style || 'big-ears-neutral'}/svg?seed=${player.avatar_seed || player.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="Avatar" style={{ width: '100%', height: '100%' }} />
       </div>
       <div style={{ flex: 1 }}>
         <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>{player.username}</div>
@@ -101,21 +101,23 @@ export default function Leaderboard() {
     <div className="page-container fit-screen">
       <div className="flex-grow-1 overflow-auto p-0 m-0 no-scrollbar">
         {/* ── RANKINGS HEADER ────────────────────────────────────────── */}
-        <div className="dashboard-header-premium mb-4 pb-5">
+        <div className="dashboard-header-premium mb-1 pb-3">
           <div className="dashboard-mesh-bg" />
 
-          <div className="container position-relative z-1 py-4 py-lg-5">
-            <div className="text-center animate-slide-in">
+          <div className="container position-relative z-1 pt-5 pb-3">
+            <div className="text-center">
               <h1 className="display-5 fw-bold mb-1 header-gradient-text" style={{ letterSpacing: '-2px' }}>
                 Global Rankings
               </h1>
-              <p className="text-muted fw-medium small mb-4">The elite hierarchy of Salpakan commanders.</p>
+              <p className="text-muted fw-medium small mb-4">
+                Compete and climb to the top! <br></br>
+                Future updates baka may rewards. ('Pag 'di ako tinamad - JB)</p>
 
               {myData && (
-                <div className="mx-auto mt-4 animate-fade-in-delayed" style={{ maxWidth: 600 }}>
+                <div className="mx-auto mt-3" style={{ maxWidth: 600 }}>
                   <div className="glass-panel hero-rank-module p-3 d-flex align-items-center gap-3"
                     style={{ textAlign: 'left' }}>
-                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 44, height: 44, background: '#fff', border: '1px solid #000' }}>
+                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 44, height: 44, background: '#fff', border: '1px solid rgba(0,0,0,0.2)' }}>
                       <img src={myTier?.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
                     </div>
                     <div style={{ flex: 1, textAlign: 'left' }}>
@@ -150,7 +152,7 @@ export default function Leaderboard() {
             {/* ── LEADERBOARD (80%) ────────────────────────────────────── */}
             <div className="col-lg-9">
               <div className="d-flex justify-content-between align-items-center mb-3">
-                <h6 className="fw-black text-uppercase mb-0" style={{ fontSize: '0.7rem', letterSpacing: '1.5px', color: '#86868B' }}>Top Commanders</h6>
+                <h6 className="fw-black text-uppercase mb-0" style={{ fontSize: '0.7rem', letterSpacing: '1.5px', color: '#86868B' }}>Top Players</h6>
                 <div className="badge rounded-pill bg-light text-dark border px-3" style={{ fontSize: '0.65rem' }}>{players.length} ACTIVE</div>
               </div>
 
@@ -159,7 +161,7 @@ export default function Leaderboard() {
                   <div className="spinner-border text-primary opacity-20" />
                 </div>
               ) : (
-                <div className="glass-panel overflow-hidden animate-fade-in">
+                <div className="glass-panel overflow-hidden">
                   <div className="px-4 py-3 bg-light border-bottom d-flex align-items-center gap-3 text-muted fw-bold" style={{ fontSize: '0.65rem', letterSpacing: '1.5px' }}>
                     <div style={{ width: 40, textAlign: 'center' }}>RANK</div>
                     <div style={{ width: 40, textAlign: 'center' }}>TIER</div>

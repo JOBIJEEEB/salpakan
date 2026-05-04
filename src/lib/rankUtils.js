@@ -1,11 +1,11 @@
 export const RANK_TIERS = [
-  { name: 'Mandirigma',      min: 0,    max: 99,       color: '#8E8E93', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Mandirigma&backgroundColor=8E8E93' },
-  { name: 'Lakan',           min: 100,  max: 199,      color: '#A52A2A', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Lakan&backgroundColor=A52A2A' },
-  { name: 'Datu',            min: 200,  max: 299,      color: '#FFD700', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Datu&backgroundColor=FFD700' },
-  { name: 'Maharlika',       min: 300,  max: 399,      color: '#34C759', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Maharlika&backgroundColor=34C759' },
-  { name: 'Heneral',         min: 400,  max: 499,      color: '#007AFF', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Heneral&backgroundColor=007AFF' },
-  { name: 'Supremo',         min: 500,  max: 599,      color: '#AF52DE', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Supremo&backgroundColor=AF52DE' },
-  { name: 'Bayani',          min: 600,  max: Infinity, color: '#FF3B30', icon: 'https://api.dicebear.com/7.x/shapes/svg?seed=Bayani&backgroundColor=FF3B30' },
+  { name: 'Mandirigma', min: 0, max: 99, color: '#8E8E93', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Mandirigma&baseColor=8E8E93' },
+  { name: 'Lakan', min: 100, max: 199, color: '#A52A2A', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Lakan&baseColor=A52A2A' },
+  { name: 'Datu', min: 200, max: 299, color: '#FFD700', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Datu&baseColor=FFD700' },
+  { name: 'Maharlika', min: 300, max: 399, color: '#34C759', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Maharlika&baseColor=34C759' },
+  { name: 'Heneral', min: 400, max: 499, color: '#007AFF', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Heneral&baseColor=007AFF' },
+  { name: 'Bayani', min: 500, max: 599, color: '#AF52DE', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Supremo&baseColor=AF52DE' },
+  { name: 'Supremo', min: 600, max: Infinity, color: '#FF3B30', icon: 'https://api.dicebear.com/9.x/bottts/svg?seed=Bayani&baseColor=FF3B30' },
 ];
 
 export function getRankTier(rr) {

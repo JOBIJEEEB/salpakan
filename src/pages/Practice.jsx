@@ -9,9 +9,9 @@ import { User, Swords, ShieldAlert, ChevronRight } from 'lucide-react';
 const STORAGE_KEY = 'salpakan_vsai_state';
 
 const DIFFICULTY_CONFIG = [
-  { id: 'recruit', label: 'Marine', icon: <User size={32} />, color: '#8E8E93', desc: 'Standard tactical training. Focuses on basic unit movement and awareness.', delay: 600 },
-  { id: 'veteran', label: 'Scout Ranger', icon: <Swords size={32} />, color: '#007AFF', desc: 'Specialized jungle warfare logic. Expect aggressive flanking and calculated trades.', delay: 800 },
-  { id: 'general', label: 'SAF Elite', icon: <ShieldAlert size={32} />, color: '#FF3B30', desc: 'Special Action Force level intelligence. Absolute precision in unit protection and capture.', delay: 1000 },
+  { id: 'recruit', label: 'Marine', icon: <User size={32} />, color: '#137aceff', desc: 'Standard tactical training. Focuses on basic unit movement and awareness.', delay: 600 },
+  { id: 'veteran', label: 'Scout Ranger', icon: <Swords size={32} />, color: '#ff00eaff', desc: 'Specialized jungle warfare logic. Expect aggressive flanking and calculated trades.', delay: 800 },
+  { id: 'general', label: 'SAF Elite', icon: <ShieldAlert size={32} />, color: '#ffac30ff', desc: 'Special Action Force level intelligence. Absolute precision in unit protection and capture.', delay: 1000 },
 ];
 
 function buildEmptyBoard() {
@@ -83,6 +83,7 @@ export default function Practice() {
 
   const { difficulty, board, phase, currentTurn, battleLog, winner } = state;
   const [aiLastMove, setAiLastMove] = useState(null);
+  const [isViewingPieces, setIsViewingPieces] = useState(false);
   const aiRunRef = useRef(false);
 
   const update = patch => setState(s => {
@@ -124,24 +125,39 @@ export default function Practice() {
       </div>
       <div style="display:flex;flex-wrap:wrap;justify-content:center">${pieceTiles || '<span style="color:#86868B;font-size:0.8rem">All enemy pieces eliminated!</span>'}</div>
     `;
+
     Swal.fire({
       title: isWin ? 'Victory' : 'Defeated',
       html,
       icon: isWin ? 'success' : 'error',
-      confirmButtonText: 'Play Again',
       showCancelButton: true,
-      cancelButtonText: 'Close',
-      confirmButtonColor: isWin ? '#34C759' : '#056d94',
+      showDenyButton: true,
+      confirmButtonText: 'Play Again',
+      denyButtonText: 'View Pieces',
+      cancelButtonText: 'Leave Match',
+      confirmButtonColor: '#34C759',
+      denyButtonColor: '#007AFF',
       cancelButtonColor: '#8E8E93',
-      width: 480,
-      customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm', cancelButton: 'apple-swal-cancel' }
-    }).then(result => { if (result.isConfirmed) reset(difficulty); });
+      width: 500,
+      customClass: { 
+        popup: 'apple-swal', 
+        title: 'apple-swal-title', 
+        confirmButton: 'apple-swal-confirm', 
+        cancelButton: 'apple-swal-cancel',
+        denyButton: 'apple-swal-deny'
+      }
+    }).then(result => { 
+      if (result.isConfirmed) reset(difficulty); 
+      else if (result.isDenied) setIsViewingPieces(true);
+      else navigate('/lobbies', { replace: true });
+    });
   }, [winner]);
 
   const reset = diff => {
     const fresh = { ...initialState(), difficulty: diff };
     setState(fresh);
     setAiLastMove(null);
+    setIsViewingPieces(false);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
   };
 
@@ -151,7 +167,7 @@ export default function Practice() {
   };
 
   useEffect(() => {
-    if (phase !== 'battle' || currentTurn !== 'guest' || winner || aiRunRef.current) return;
+    if (phase !== 'battle' || currentTurn !== 'guest' || winner || aiRunRef.current || isViewingPieces) return;
     const diff = DIFFICULTY_CONFIG.find(d => d.id === difficulty);
     const timer = setTimeout(() => {
       const move = aiPickMove(board, difficulty);
@@ -190,17 +206,17 @@ export default function Practice() {
       aiRunRef.current = false;
     }, diff?.delay ?? 700);
     return () => { clearTimeout(timer); aiRunRef.current = false; };
-  }, [phase, currentTurn, winner, board, difficulty]);
+  }, [phase, currentTurn, winner, board, difficulty, isViewingPieces]);
 
-  const handleForfeit = async () => {
+  const handleSurrender = async () => {
     if (winner) { navigate('/lobbies', { replace: true }); return; }
     const isStarting = (phase === 'deployment');
-    const title = isStarting ? 'Exit Practice?' : 'Forfeit Practice?';
-    const text = isStarting ? 'Are you sure you want to stop?' : 'Are you sure you want to forfeit?';
+    const title = isStarting ? 'Exit Practice?' : 'Surrender Match?';
+    const text = isStarting ? 'Are you sure you want to stop?' : 'Are you sure you want to surrender this match?';
 
     const confirm = await Swal.fire({
       title, text, icon: 'warning', showCancelButton: true,
-      confirmButtonText: isStarting ? 'Yes, exit' : 'Yes, forfeit',
+      confirmButtonText: isStarting ? 'Yes, exit' : 'Yes, surrender',
       cancelButtonText: 'Cancel', confirmButtonColor: '#FF3B30', cancelButtonColor: '#86868B',
       customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm', cancelButton: 'apple-swal-cancel' }
     });
@@ -220,7 +236,7 @@ export default function Practice() {
                   ← Back to Lobbies
                 </button>
               </div>
-              <div className="text-start animate-slide-in">
+              <div className="text-start">
                 <h1 className="display-5 fw-bold mb-1 header-gradient-text" style={{ letterSpacing: '-2px' }}>
                   Practice Mode
                 </h1>
@@ -244,7 +260,7 @@ export default function Practice() {
                       <p className="text-muted small mb-0">{d.desc}</p>
                     </div>
                     <div className="mt-auto pt-3 d-flex align-items-center gap-2 fw-bold text-primary" style={{ fontSize: '0.8rem' }}>
-                      Deploy for Training <ChevronRight size={16} />
+                      Start Training <ChevronRight size={16} />
                     </div>
                   </button>
                 </div>
@@ -257,21 +273,15 @@ export default function Practice() {
   }
 
   return (
-    <div className="battlefield-container overflow-hidden">
-      <div className="d-flex flex-column" style={{ height: '100vh', padding: '0.75rem 1.25rem' }}>
-        <div className="d-flex align-items-center mb-3 gap-3">
-          <button onClick={handleForfeit} className="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-            {winner ? 'Back to Lobbies' : (phase === 'deployment' ? 'Exit Practice' : 'Forfeit Practice')}
-          </button>
-          <div>
-            <h6 className="fw-bold mb-0">{DIFFICULTY_CONFIG.find(d => d.id === difficulty)?.label} — Practice</h6>
-            <div style={{ color: '#86868B', fontSize: '0.7rem', visibility: (currentTurn === 'guest' && phase === 'battle' && !winner) ? 'visible' : 'hidden', minHeight: '1.2em' }}>
-              Practice Partner is thinking…
-            </div>
-          </div>
-        </div>
-        <div className="flex-grow-1 overflow-hidden position-relative glass-panel p-2">
+    <div className="battlefield-container overflow-hidden flex-grow-1">
+        <div className="flex-grow-1 overflow-hidden position-relative p-0">
           <div className="h-100 overflow-auto no-scrollbar">
+            <div className="text-center pt-3 pb-2">
+              <h5 className="fw-bold mb-0" style={{ letterSpacing: '-0.5px' }}>{DIFFICULTY_CONFIG.find(d => d.id === difficulty)?.label} Practice</h5>
+              <div style={{ color: '#86868B', fontSize: '0.72rem', visibility: (currentTurn === 'guest' && phase === 'battle' && !winner && !isViewingPieces) ? 'visible' : 'hidden', minHeight: '1.2em' }}>
+                Practice Partner is thinking…
+              </div>
+            </div>
             <GameBoard
               board={board} setBoard={b => update({ board: b })}
               phase={phase} setPhase={handlePhaseChange}
@@ -281,10 +291,13 @@ export default function Practice() {
               winner={winner} setWinner={w => update({ winner: w })}
               isAI={true} aiLastMove={aiLastMove}
               gameMode="Normal" turnStartAt={state.turn_start_at}
+              onSurrender={handleSurrender}
+              onPlayAgain={() => reset(difficulty)}
+              onLeave={() => navigate('/lobbies', { replace: true })}
+              isViewingPieces={isViewingPieces}
             />
           </div>
         </div>
       </div>
-    </div>
   );
 }

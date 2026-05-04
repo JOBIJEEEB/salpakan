@@ -27,11 +27,11 @@ export const showPlayerProfile = (player) => {
               border: 4px solid #F2F2F7; 
               padding: 4px; 
               background: #fff;
-              box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+              box-shadow: 0 10px 30px rgba(13, 146, 255, 1);
               overflow: hidden;
             ">
               <img 
-                src="https://api.dicebear.com/7.x/${player.avatar_style || 'notionists'}/svg?seed=${player.avatar_seed || player.username}&backgroundColor=b6e3f4,c0aede,d1d4f9" 
+                src="https://api.dicebear.com/9.x/${player.avatar_style || 'big-ears-neutral'}/svg?seed=${player.avatar_seed || player.username}&backgroundColor=b6e3f4,c0aede,d1d4f9" 
                 style="width: 100%; height: 100%; border-radius: 50%;"
               />
             </div>

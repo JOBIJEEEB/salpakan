@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Info } from 'lucide-react';
 import { PIECE_DEFS, buildPieceSet, resolveCombat, getValidMoves,
-         HOST_DEPLOY_ROWS, GUEST_DEPLOY_ROWS, ROWS, COLS, QUICK_DEPLOY } from '../lib/gameConstants';
+         HOST_DEPLOY_ROWS, GUEST_DEPLOY_ROWS, ROWS, COLS } from '../lib/gameConstants';
 
 const GAP  = 4;
 
@@ -51,7 +51,7 @@ function MyGraveyard({ board, playerRole }) {
 }
 
 // ── Light-mode Battle Log (terminal aesthetic, light background) ──────────────
-function TerminalLog({ log }) {
+function TerminalLog({ log, playerRole }) {
   const bottomRef = useRef(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
 
@@ -79,9 +79,27 @@ function TerminalLog({ log }) {
           <span style={{ color: '#AEAEB2' }}>// awaiting first contact...</span>
         ) : (
           displayLog.map((entry, i) => {
-            const color = entry.startsWith('HOST:') ? '#056d94'
-                        : entry.startsWith('GUEST:') ? '#FF3B30'
-                        : '#1D1D1F';
+            // Issue 9: Fix log colors based on local player role
+            const isHostEntry = entry.startsWith('HOST:');
+            const isGuestEntry = entry.startsWith('GUEST:');
+            const isTie = entry.startsWith('TIE:');
+            
+            let color = '#1D1D1F'; // Default
+            if (isHostEntry) color = '#056d94';
+            else if (isGuestEntry) color = '#FF3B30';
+            else if (isTie) color = '#AF52DE';
+
+            // If it's the current player's action, use blue, if opponent, use red
+            // The user wants: blue for local player, red for opponent.
+            // Currently, HOST is blue and GUEST is red.
+            // If local player is GUEST, they see red for themselves.
+            // Let's adjust:
+            const myPrefix = playerRole === 'host' ? 'HOST:' : 'GUEST:';
+            const oppPrefix = playerRole === 'host' ? 'GUEST:' : 'HOST:';
+            
+            if (entry.startsWith(myPrefix)) color = '#056d94'; // Always Blue for self
+            else if (entry.startsWith(oppPrefix)) color = '#FF3B30'; // Always Red for opponent
+
             return (
               <div key={i} style={{ marginBottom: 4, color }}>
                 <span style={{ opacity: 0.5, marginRight: 6 }}>&gt;</span>
@@ -96,11 +114,11 @@ function TerminalLog({ log }) {
   );
 }
 
-function PieceLegend() {
+function PieceLegend({ onSurrender, onPlayAgain, onLeave, isViewingPieces, winner, phase }) {
   return (
-    <div className="glass-panel p-2" style={{ minWidth: 130, maxWidth: 145, flexShrink: 0 }}>
+    <div className="battlefield-glass-panel p-3" style={{ minWidth: 160, maxWidth: 180, flexShrink: 0 }}>
       <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1px',
-                    fontWeight: 700, color: '#86868B', marginBottom: 6 }}>
+                    fontWeight: 700, color: '#86868B', marginBottom: 10 }}>
         Power Hierarchy
       </div>
       <table style={{ width: '100%', fontSize: '0.62rem', borderCollapse: 'separate', borderSpacing: '0 2px' }}>
@@ -116,28 +134,54 @@ function PieceLegend() {
           ))}
         </tbody>
       </table>
-      <div style={{ marginTop: 8, fontSize: '0.58rem', color: '#86868B',
-                    background: 'rgba(0,0,0,0.04)', borderRadius: 6, padding: '5px 6px', lineHeight: 1.5 }}>
+      <div style={{ marginTop: 10, fontSize: '0.58rem', color: '#86868B',
+                    background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: '8px', lineHeight: 1.5 }}>
         <b>Spy</b> beats all ranks<br />
         <b>Private</b> beats Spy<br />
         <b>Flag</b> = objective
+      </div>
+
+      <div className="mt-3 d-flex flex-column gap-2">
+        {isViewingPieces ? (
+          <>
+            <button onClick={onPlayAgain} className="btn btn-primary btn-sm rounded-pill py-2" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+              Play Again
+            </button>
+            <button onClick={onLeave} className="btn btn-outline-secondary btn-sm rounded-pill py-2" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+              Leave Match
+            </button>
+          </>
+        ) : (
+          !winner && phase === 'battle' && (
+            <button onClick={onSurrender} className="btn btn-outline-danger btn-sm rounded-pill py-2 w-100" style={{ fontSize: '0.7rem', fontWeight: 700, borderStyle: 'dashed' }}>
+              Surrender Match
+            </button>
+          )
+        )}
       </div>
     </div>
   );
 }
 
+const PIECE_COLOR = (type, side) => {
+  if (side === 'enemy') {
+    if (type === 'SPY') return '#AF52DE'; // Purple-ish for enemy spy
+    if (type === 'FLAG') return '#FF9500'; // Flag is orange
+    return '#FF3B30'; // Red team base
+  }
+  // Local/Mine side
+  if (type === 'SPY') return '#5856D6';
+  if (type === 'FLAG') return '#FF9500';
+  return '#056d94';
+};
 
-const PIECE_COLOR = (type) =>
-  type === 'SPY' ? '#5856D6' : type === 'FLAG' ? '#FF9500' : '#056d94';
-
-const PRESETS = [{ id: 'recommended', label: 'Pro Setup', data: QUICK_DEPLOY }];
 const COLS_LBL = Array.from({ length: COLS }, (_, i) => String.fromCharCode(65 + i));
 const ROWS_LBL = Array.from({ length: ROWS }, (_, i) => String(8 - i));
 
 const coord = (r, c) => `${String.fromCharCode(65 + c)}${8 - r}`;
 
 function BoardGrid({ board, playerRole, myDeployRows, phase, selectedCell, validMoves,
-                     swapFirst, aiLastMove, lastPlayerMove, deploySelFrom, onCellClick, onCellCtx, cellSize }) {
+                     swapFirst, aiLastMove, lastPlayerMove, deploySelFrom, onCellClick, onCellCtx, cellSize, isViewingPieces }) {
   const CELL = cellSize;
   const [hoveredCell, setHoveredCell] = React.useState(null);
   const dispBoard  = playerRole === 'guest' ? [...board].reverse().map(r => [...r].reverse()) : board;
@@ -170,12 +214,12 @@ function BoardGrid({ board, playerRole, myDeployRows, phase, selectedCell, valid
             const isLastAI  = aiLastMove && [aiLastMove.from, aiLastMove.to].some(([r2,c2]) => r2===ar && c2===ac);
             const isDeployHighlight = deploySelFrom?.[0]===ar && deploySelFrom?.[1]===ac;
 
-            let bg = '#F2F2F7';
+            let bg = isViewingPieces ? 'rgba(0,0,0,0.03)' : '#F2F2F7';
             if (isDeploy && !cell) bg = 'rgba(0,122,255,0.06)';
             if (isLastP)  bg = 'rgba(5, 109, 148, 0.1)';
             if (isLastAI) bg = 'rgba(255, 59, 48, 0.1)';
-            if (isMine)   bg = PIECE_COLOR(cell.type);
-            if (isEnemy)  bg = '#FF3B30';
+            if (isMine)   bg = PIECE_COLOR(cell.type, 'mine');
+            if (isEnemy)  bg = isViewingPieces ? PIECE_COLOR(cell.type, 'enemy') : '#FF3B30'; 
             
             // Only apply selection background if the cell is EMPTY. Otherwise, use border/box-shadow.
             if (!cell && (isSel || isSwapSel || isDeployHighlight)) {
@@ -188,14 +232,54 @@ function BoardGrid({ board, playerRole, myDeployRows, phase, selectedCell, valid
                          : '3px solid transparent';
 
             const isHovered = hoveredCell?.[0]===ar && hoveredCell?.[1]===ac;
-            const canInteract = isMine || isEnemy || isValid || isDeploy;
+            const canInteract = !isViewingPieces && (isMine || isEnemy || isValid || isDeploy);
 
             return (
               <div key={`${ar}-${ac}`}
-                onClick={() => onCellClick(ar, ac)}
-                onContextMenu={e => { e.preventDefault(); onCellCtx(ar, ac); }}
+                onClick={() => !isViewingPieces && onCellClick(ar, ac)}
+                onContextMenu={e => { e.preventDefault(); !isViewingPieces && onCellCtx(ar, ac); }}
                 onMouseEnter={() => setHoveredCell([ar, ac])}
                 onMouseLeave={() => setHoveredCell(null)}
+                draggable={!isViewingPieces && (isMine || isEnemy)}
+                onDragStart={(e) => {
+                  if (isViewingPieces || (!isMine && !isEnemy)) return;
+                  e.dataTransfer.setData('pieceId', cell.id);
+                  e.dataTransfer.setData('fromBoard', 'true');
+                  e.dataTransfer.setData('fromRow', ar);
+                  e.dataTransfer.setData('fromCol', ac);
+                }}
+                onDragOver={(e) => {
+                  if (isViewingPieces || phase !== 'deployment') return;
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  if (isViewingPieces || phase !== 'deployment') return;
+                  e.preventDefault();
+                  const pieceId = e.dataTransfer.getData('pieceId');
+                  const fromBoard = e.dataTransfer.getData('fromBoard') === 'true';
+                  
+                  if (fromBoard) {
+                    const fr = parseInt(e.dataTransfer.getData('fromRow'));
+                    const fc = parseInt(e.dataTransfer.getData('fromCol'));
+                    // Swap logic
+                    const next = board.map(r => [...r]);
+                    [next[ar][ac], next[fr][fc]] = [next[fr][fc], next[ar][ac]];
+                    setBoard(next);
+                  } else {
+                    // Deployment logic from tray
+                    const p = unplaced.find(x => x.id === pieceId);
+                    if (!p || !myDeployRows.includes(ar)) return;
+                    const next = board.map(r => [...r]);
+                    const displaced = next[ar][ac]?.owner === playerRole ? next[ar][ac] : null;
+                    next[ar][ac] = { ...p, owner: playerRole };
+                    setBoard(next);
+                    setUnplaced(u => {
+                      let updated = u.filter(x => x.id !== p.id);
+                      if (displaced) updated = [...updated, displaced];
+                      return updated;
+                    });
+                  }
+                }}
                 style={{ width: CELL, height: CELL, borderRadius: 8, background: bg, border,
                          display: 'flex', flexDirection: 'column', alignItems: 'center',
                          justifyContent: 'center', cursor: canInteract ? 'pointer' : 'default',
@@ -203,12 +287,13 @@ function BoardGrid({ board, playerRole, myDeployRows, phase, selectedCell, valid
                          transition: 'all 0.15s ease',
                          transform: isHovered && canInteract ? 'scale(1.08)' : 'scale(1)',
                          boxShadow: isHovered && canInteract ? '0 4px 14px rgba(0,0,0,0.12)' : 'none',
+                         opacity: isViewingPieces && !cell ? 0.4 : 1
                 }}>
-                {isMine && <>
+                {(isMine || (isViewingPieces && isEnemy)) && <>
                   <span style={{ fontSize: '0.85rem', color: '#fff', lineHeight: 1 }}>{PIECE_ICON[cell.type]}</span>
                   <span style={{ fontSize: '0.42rem', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.2px', lineHeight: 1 }}>{cell.abbr}</span>
                 </>}
-                {isEnemy && <span style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.7)' }}>?</span>}
+                {isEnemy && !isViewingPieces && <span style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.7)' }}>?</span>}
                 {!cell && isValid && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(52,199,89,0.8)', boxShadow: '0 0 6px rgba(52,199,89,0.5)' }} />}
               </div>
             );
@@ -236,9 +321,33 @@ export default function GameBoard({
   onTimeout,
   isAI = false, aiLastMove = null,
   gameMode = 'Normal',
-  turnStartAt
+  turnStartAt,
+  matchCreatedAt,
+  onSurrender, // Pass through
+  onPlayAgain,
+  onLeave,
+  isViewingPieces = false
 }) {
-  const [unplaced, setUnplaced]             = useState(() => buildPieceSet(playerRole));
+  const [unplaced, setUnplaced]             = useState(() => {
+    const fullSet = buildPieceSet(playerRole);
+    const placedIds = new Set(board.flat().filter(c => c?.owner === playerRole).map(c => c.id));
+    return fullSet.filter(p => !placedIds.has(p.id));
+  });
+
+  // Sync unplaced pieces when board changes (crucial for persistence/tab-switching)
+  useEffect(() => {
+    if (phase === 'deployment') {
+      const fullSet = buildPieceSet(playerRole);
+      const placedIds = new Set(board.flat().filter(c => c?.owner === playerRole).map(c => c.id));
+      const nextUnplaced = fullSet.filter(p => !placedIds.has(p.id));
+      
+      // Only update if the length changed or if we had a full set but board isn't empty
+      // to avoid unnecessary state updates during active dragging
+      if (nextUnplaced.length !== unplaced.length) {
+        setUnplaced(nextUnplaced);
+      }
+    }
+  }, [board, playerRole, phase]);
   const [selectedPiece, setSelectedPiece]   = useState(null);
   const [selectedPieceFrom, setSelectedPieceFrom] = useState(null);
   const [selectedCell, setSelectedCell]     = useState(null);
@@ -247,27 +356,22 @@ export default function GameBoard({
   const [flagBreakthrough, setFlagBreakthrough] = useState({ host: null, guest: null });
   const [swapMode, setSwapMode]   = useState(false);
   const [swapFirst, setSwapFirst] = useState(null);
-  const [preset, setPreset]       = useState('');
   const [cellSize, setCellSize]   = useState(64);
   const [winnerOfMoveLocal, setWinnerOfMoveLocal] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
       const w = window.innerWidth;
-      if (w < 500) setCellSize(38);
-      else if (w < 768) setCellSize(48);
-      else if (w < 1200) setCellSize(64);
-      else if (w < 1500) setCellSize(72);
-      else setCellSize(84);
+      if (w < 500) setCellSize(34);
+      else if (w < 768) setCellSize(42);
+      else if (w < 1200) setCellSize(52);
+      else if (w < 1500) setCellSize(58);
+      else setCellSize(64);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  const [customPresets, setCustomPresets] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('salpakan_presets') || '[]'); }
-    catch { return []; }
-  });
 
   const getDuration = (mode) => {
     if (mode === 'Blitz') return 30;
@@ -277,9 +381,8 @@ export default function GameBoard({
 
   const [timeLeft, setTimeLeft] = useState(getDuration(gameMode));
 
-  // ── Sync Timer with Server Timestamp ──────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'battle' || winner || winnerOfMoveLocal) return;
+    if (phase !== 'battle' || winner || winnerOfMoveLocal || isViewingPieces) return;
 
     const interval = setInterval(() => {
       const duration = getDuration(gameMode);
@@ -295,19 +398,23 @@ export default function GameBoard({
 
       setTimeLeft(remaining);
 
-      // Only trigger timeout if it's MY turn (to avoid double skip)
       if (remaining <= 0 && (currentTurn === playerRole || isAI)) {
         clearInterval(interval);
         const nextT = currentTurn === 'host' ? 'guest' : 'host';
         setCurrentTurn(nextT);
         const msg = `${currentTurn.toUpperCase()} timed out!`;
+        if (onTimeout) {
+          onTimeout(nextT, msg).catch(err => {
+            console.error('Timeout sync failed, retrying...', err);
+            setTimeout(() => onTimeout(nextT, msg), 1000);
+          });
+        }
         setBattleLog(prevLog => [...prevLog, msg]);
-        if (onTimeout) onTimeout(nextT, msg);
       }
-    }, 500); // Check every 500ms for responsiveness
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [turnStartAt, phase, winner, currentTurn, playerRole, isAI, gameMode]);
+  }, [turnStartAt, phase, winner, currentTurn, playerRole, isAI, gameMode, isViewingPieces]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
@@ -318,7 +425,6 @@ export default function GameBoard({
   const myDeployRows = playerRole === 'host' ? HOST_DEPLOY_ROWS : GUEST_DEPLOY_ROWS;
   const enemyBackRow = playerRole === 'host' ? 0 : 7;
   const isMyTurn     = currentTurn === playerRole;
-  const placedCount  = board.flat().filter(c => c?.owner === playerRole).length;
   const total        = PIECE_DEFS.reduce((s, p) => s + p.count, 0);
 
   const randomize = () => {
@@ -335,78 +441,6 @@ export default function GameBoard({
     const next = board.map(r => [...r]); const removed = [];
     next.forEach((row, r) => row.forEach((cell, c) => { if (cell?.owner === playerRole) { removed.push(cell); next[r][c] = null; } }));
     setBoard(next); setUnplaced(u => [...u, ...removed]); setSwapFirst(null);
-  };
-
-  const allPresets = [...PRESETS, ...customPresets];
-
-  const savePreset = async () => {
-    const { value: name } = await Swal.fire({
-      title: 'Save Formation',
-      input: 'text',
-      inputLabel: 'Give this tactical setup a name:',
-      inputPlaceholder: 'e.g., Blitz Defense',
-      showCancelButton: true,
-      confirmButtonText: 'Save Setup',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#056d94',
-      cancelButtonColor: '#86868B',
-      inputAttributes: { maxlength: 20 },
-      customClass: {
-        popup: 'apple-swal',
-        title: 'apple-swal-title',
-        confirmButton: 'apple-swal-confirm',
-        cancelButton: 'apple-swal-cancel',
-        input: 'apple-input text-center'
-      },
-      inputValidator: (value) => {
-        if (!value || !value.trim()) return 'Please enter a name!';
-      }
-    });
-
-    if (!name) return;
-
-    const positions = [];
-    board.forEach((row, r) => row.forEach((cell, c) => {
-      if (cell?.owner === playerRole) positions.push({ row: r, col: c, type: cell.type });
-    }));
-
-    if (positions.length < total) {
-      Swal.fire({
-        title: 'Incomplete Formation',
-        text: 'Deploy all units on the board before saving.',
-        icon: 'error',
-        confirmButtonColor: '#056d94',
-        customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm' }
-      });
-      return;
-    }
-
-    const entry = { id: `custom_${Date.now()}`, label: name.trim(), positions };
-    const updated = [...customPresets, entry].slice(-3);
-    setCustomPresets(updated);
-    localStorage.setItem('salpakan_presets', JSON.stringify(updated));
-    
-    Swal.fire({
-      title: 'Formation Saved',
-      text: `"${name}" is now available in your presets.`,
-      icon: 'success',
-      timer: 1500,
-      showConfirmButton: false,
-      customClass: { popup: 'apple-swal', title: 'apple-swal-title' }
-    });
-  };
-
-  const applyPreset = (id) => {
-    const found = allPresets.find(p => p.id === id); if (!found) return;
-    const positions = found.data?.positions ?? found.positions;
-    const next = board.map(r => r.map(() => null));
-    const pieces = buildPieceSet(playerRole); const used = {};
-    positions.forEach(({ row: r, col: c, type }) => {
-      const ar = playerRole === 'guest' ? 7-r : r;
-      const p = pieces.find(p => p.type === type && !used[p.id]);
-      if (p) { used[p.id] = true; next[ar][c] = { ...p, owner: playerRole }; }
-    });
-    setBoard(next); setUnplaced([]);
   };
 
   const handleDeployClick = (row, col) => {
@@ -447,7 +481,7 @@ export default function GameBoard({
   };
 
   const handleBattleClick = (row, col) => {
-    if (!isMyTurn || winner || winnerOfMoveLocal) return;
+    if (!isMyTurn || winner || winnerOfMoveLocal || isViewingPieces) return;
     const cell = board[row][col];
     if (selectedCell) {
       const [sr, sc] = selectedCell;
@@ -488,7 +522,7 @@ export default function GameBoard({
             }
           } else {
             next[row][col] = null; next[sr][sc] = null; log = `TIE: Both pieces eliminated at ${coord(row,col)}.`;
-            if (mover.type === 'FLAG' || target.type === 'FLAG') { 
+            if (mover.type === 'FLAG' || (target && target.type === 'FLAG')) { 
               setWinner('tie'); 
               flagCaptured = true; 
             }
@@ -508,7 +542,6 @@ export default function GameBoard({
           else if (mover.type === 'FLAG' && result === 'defender') winnerOfMove = playerRole === 'host' ? 'guest' : 'host';
           else if (mover.type === 'FLAG' || (target && target.type === 'FLAG')) winnerOfMove = 'tie';
 
-          // Reset breakthrough if flag was lost
           if (mover.type === 'FLAG' && result !== 'attacker') nextFb[playerRole] = null;
           if (target?.type === 'FLAG' && result === 'attacker') {
             const enemyRole = playerRole === 'host' ? 'guest' : 'host';
@@ -528,53 +561,18 @@ export default function GameBoard({
     } else if (cell?.owner === playerRole) { setSelectedCell([row,col]); setValidMoves(getValidMoves(board,row,col,playerRole)); }
   };
 
-  // ── DEPLOYMENT PHASE ────────────────────────────────────────────────────────
   if (phase === 'deployment') return (
-    <div className="container-fluid px-0" style={{ maxWidth: 1400, margin: '0 auto' }}>
-      {/* Header Toolbar */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 20, flexWrap:'wrap', gap:12 }}>
-        <div style={{ display:'flex', gap: 12, flexWrap:'wrap', alignItems:'center' }}>
-          <div style={{ display:'flex', gap: 6 }}>
-            {[['Randomize', randomize, false], ['✕ Clear', clearBoard, false],
-              ['⇄ Swap' + (swapMode ? ' ON' : ''), () => { setSwapMode(v=>!v); setSwapFirst(null); }, swapMode]
-             ].map(([label, fn, active]) => (
-              <button key={label} onClick={fn} style={{
-                background: active ? '#007AFF' : '#fff', color: active ? '#fff' : '#1D1D1F',
-                border: '1px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '8px 14px', fontSize: '0.8rem',
-                fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-                boxShadow: active ? '0 4px 12px rgba(0,122,255,0.3)' : '0 2px 4px rgba(0,0,0,0.05)' }}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ height: 24, width: 1, background: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select value={preset} onChange={e => { setPreset(e.target.value); if (e.target.value) applyPreset(e.target.value); }}
-              className="form-select form-select-sm rounded-pill shadow-sm" 
-              style={{ fontSize:'0.8rem', width: 160, background: '#fff', border: '1px solid rgba(0,0,0,0.1)' }}>
-              <option value="">— Formations —</option>
-              {allPresets.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
-            <button className="btn btn-outline-primary btn-sm rounded-pill px-3" 
-              style={{ fontWeight: 600, fontSize: '0.8rem' }} 
-              title="Save current setup"
-              onClick={savePreset}>Create Preset</button>
-          </div>
-        </div>
-        <div className="d-flex align-items-center gap-3">
-          <div className="glass-panel d-flex align-items-center gap-2 px-3 py-1 border-0 shadow-sm" style={{ background: 'rgba(255,255,255,0.5)' }}>
-            <div className="spinner-grow spinner-grow-sm text-primary" role="status" style={{ width: 8, height: 8 }}></div>
-            <span className="text-muted small fw-medium">Deployment Phase</span>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1100 ? '1fr' : 'auto 1fr', gap: 30, alignItems: 'start' }}>
+    <div className="container-fluid px-0 d-flex flex-column align-items-center" style={{ marginTop: '20px' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', justifyContent: 'center', width: '100%', flexWrap: 'wrap', marginBottom: 20 }}>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
-          <div className="glass-panel" style={{ padding: 20, background: '#fff' }}>
+          <div className="battlefield-glass-panel" style={{ padding: '0.75rem' }}>
+            <PieceLegend winner={null} phase={phase} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
+          <div className="battlefield-glass-panel" style={{ padding: '0.75rem' }}>
             <BoardGrid board={board} playerRole={playerRole} myDeployRows={myDeployRows}
               phase="deployment" selectedCell={selectedCell} validMoves={[]}
               swapFirst={swapFirst} aiLastMove={null} lastPlayerMove={null} deploySelFrom={selectedPieceFrom}
@@ -582,11 +580,8 @@ export default function GameBoard({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Utility Panels */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          
-          {/* Card 1: Available Pieces */}
-          <div className="glass-panel p-4" style={{ minHeight: 200, border: unplaced.length === 0 ? '2px solid #056d94' : '1px solid var(--glass-border)' }}>
+          <div className="battlefield-glass-panel p-3" style={{ minHeight: 200, width: 280, border: unplaced.length === 0 ? '2px solid #056d94' : '1px solid rgba(255,255,255,0.5)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <span className="fw-bold" style={{ fontSize:'1rem', color: '#1D1D1F' }}>Available Pieces</span>
               <span className={`badge rounded-pill ${unplaced.length === 0 ? 'bg-success' : 'bg-primary'}`} style={{ fontSize: '0.7rem' }}>
@@ -602,7 +597,6 @@ export default function GameBoard({
               </button>
             )}
 
-            
             {unplaced.length === 0
               ? <div className="text-center py-4" style={{ fontSize:'0.9rem', color:'#86868B', background: 'rgba(52, 199, 89, 0.05)', borderRadius: 12, border: '1px dashed #34C759' }}>
                   <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: 5 }}>✓</span>
@@ -610,77 +604,84 @@ export default function GameBoard({
                 </div>
               : <div style={{ display:'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(56px, 1fr))', gap: 8 }}>
                   {unplaced.map(p => (
-                    <div key={p.id} onClick={() => { setSelectedPiece(p); setSelectedPieceFrom(null); }} 
-                      title={`${p.label} (Rank ${p.type === 'FLAG' || p.type === 'SPY' ? 'Special' : p.type})`}
-                      style={{ height: 64, borderRadius: 12, display: 'flex', flexDirection: 'column',
-                               alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 2,
-                               background: selectedPiece?.id===p.id ? '#056d94' : '#F2F2F7',
-                               border: selectedPiece?.id===p.id ? '2px solid #056d94' : '1px solid transparent',
-                               transition: 'all 0.2s ease',
-                               transform: selectedPiece?.id===p.id ? 'scale(1.05)' : 'scale(1)',
-                               boxShadow: selectedPiece?.id===p.id ? '0 4px 12px rgba(5,109,148,0.2)' : 'none' }}>
-                      <span style={{ fontSize: '1.1rem', color: selectedPiece?.id===p.id ? '#fff' : '#1D1D1F' }}>{PIECE_ICON[p.type]}</span>
-                      <span style={{ fontSize: '0.45rem', fontWeight: 700, color: selectedPiece?.id===p.id ? 'rgba(255,255,255,0.8)' : '#86868B', textTransform: 'uppercase' }}>{p.abbr}</span>
+                    <div key={p.id} 
+                      onClick={() => { setSelectedPiece(p); setSelectedPieceFrom(null); }} 
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('pieceId', p.id);
+                        e.dataTransfer.setData('fromBoard', 'false');
+                        setSelectedPiece(p);
+                      }}
+                      title={`${p.label}`}
+                      style={{ height: 48, borderRadius: 10, display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', cursor: 'grab', gap: 1,
+                                background: selectedPiece?.id===p.id ? '#056d94' : '#F2F2F7',
+                                border: selectedPiece?.id===p.id ? '2px solid #056d94' : '1px solid transparent',
+                                transition: 'all 0.2s ease',
+                                transform: selectedPiece?.id===p.id ? 'scale(1.05)' : 'scale(1)',
+                                boxShadow: selectedPiece?.id===p.id ? '0 4px 12px rgba(5,109,148,0.2)' : 'none' }}>
+                      <span style={{ fontSize: '0.9rem', color: selectedPiece?.id===p.id ? '#fff' : '#1D1D1F' }}>{PIECE_ICON[p.type]}</span>
+                      <span style={{ fontSize: '0.38rem', fontWeight: 700, color: selectedPiece?.id===p.id ? 'rgba(255,255,255,0.8)' : '#86868B', textTransform: 'uppercase' }}>{p.abbr}</span>
                     </div>
                   ))}
                 </div>
             }
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
-            {/* Card 2: Quick Tips / Legend Toggle */}
-            <div className="glass-panel p-3 d-flex flex-row align-items-center gap-3">
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(5,109,148,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink: 0 }}>
-                <Info size={20} color="#056d94" />
-              </div>
-              <div className="text-start">
-                <div className="fw-bold" style={{ fontSize: '0.85rem' }}>Setup Guide</div>
-                <p className="mb-0" style={{ fontSize: '0.7rem', color: '#86868B' }}>
-                  Place all 21 pieces within the first 3 rows. Drag to move or use setups above.
-                </p>
+            {/* In-Panel Setup Guide */}
+            <div style={{ marginTop: 20, padding: '12px', borderRadius: 12, background: 'rgba(0, 122, 255, 0.05)', border: '1px solid rgba(0, 122, 255, 0.1)', display: 'flex', gap: 10, alignItems: 'start' }}>
+              <Info size={16} style={{ color: '#007AFF', marginTop: 2, flexShrink: 0 }} />
+              <div style={{ fontSize: '0.72rem', color: '#424245', lineHeight: 1.4, fontWeight: 500 }}>
+                Place all 21 pieces within your first 3 rows. Drag pieces to the board or <b style={{ color: '#007AFF' }}>right-click</b> to remove them.
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Piece Legend - Full width at bottom of panels */}
-          <div className="glass-panel p-3">
-            <div className="fw-bold mb-3" style={{ fontSize:'0.9rem' }}>Power Hierarchy Reference</div>
-            <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: 5 }}>
-              <table className="table table-sm table-borderless mb-0" style={{ fontSize: '0.75rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                    <th>PIECE</th>
-                    <th className="text-end">RANK</th>
-                    <th className="text-end">QTY</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PIECE_DEFS.map((p, i) => (
-                    <tr key={p.type} style={{ verticalAlign: 'middle' }}>
-                      <td style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: '1rem' }}>{PIECE_ICON[p.type]}</span>
-                        <span>{p.label}</span>
-                      </td>
-                      <td className="text-end fw-bold text-primary">{p.type === 'FLAG' || p.type === 'SPY' ? '—' : i + 1}</td>
-                      <td className="text-end text-muted">×{p.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div style={{ display:'flex', justifyContent:'center', alignItems:'center', marginTop: 20, flexWrap:'wrap', gap: 12, width: '100%' }}>
+        <div style={{ display:'flex', gap: 8, flexWrap:'wrap', justifyContent: 'center' }}>
+          <button onClick={randomize} style={{
+            background: '#007AFF', color: '#fff', border: 'none',
+            borderRadius: 12, padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: '0 4px 12px rgba(0, 122, 255, 0.3)'
+          }}>
+            Randomize
+          </button>
 
+          <button onClick={clearBoard} style={{
+            background: '#FFFFFF', color: '#1D1D1F', border: '1px solid rgba(0, 0, 0, 0.1)',
+            borderRadius: 12, padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+          }}>
+            ✕ Clear
+          </button>
+
+          <button onClick={() => { setSwapMode(v=>!v); setSwapFirst(null); }} style={{
+            background: swapMode ? '#007AFF' : '#FFFFFF', 
+            color: swapMode ? '#fff' : '#1D1D1F', 
+            border: swapMode ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
+            borderRadius: 12, padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: swapMode ? '0 4px 12px rgba(0,122,255,0.3)' : 'none'
+          }}>
+            ⇄ Swap {swapMode ? 'ON' : 'OFF'}
+          </button>
+          
+          <button onClick={onSurrender} style={{
+            background: '#FF3B30', color: '#fff', border: 'none',
+            borderRadius: 12, padding: '10px 18px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: '0 4px 12px rgba(255, 59, 48, 0.3)'
+          }}>
+            {isAI ? 'Exit Practice' : 'Exit Lobby'}
+          </button>
         </div>
       </div>
     </div>
   );
 
-  // ── BATTLE PHASE ────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width:'100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width:'100%', marginTop: '20px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent: 'center', marginBottom: 15,
                     width: '100%', gap: 12, flexWrap:'wrap' }}>
-        {!winner && (
+        {!winner && !isViewingPieces && (
           <div style={{
             background: timeLeft <= 10 ? '#FF3B30' : 'var(--system-blue)', color: '#fff', borderRadius: 8,
             padding: '8px 16px', fontWeight: 700, fontSize: '1rem', letterSpacing: '1px',
@@ -690,42 +691,47 @@ export default function GameBoard({
             ⏱ {formatTime(timeLeft)}
           </div>
         )}
-        {!winner
-          ? <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                          gap:8, minWidth: 200,
-                          background: isMyTurn ? '#056d94' : '#FF3B30', color:'#fff',
-                          borderRadius:999, padding:'8px 24px', fontWeight:700, fontSize:'0.9rem',
-                          letterSpacing:'1px',
-                          boxShadow:`0 4px 14px ${isMyTurn ? 'rgba(5, 109, 148, 0.4)' : 'rgba(255,59,48,0.4)'}`,
-                          transition:'background 0.3s, box-shadow 0.3s' }}>
-              {isMyTurn ? 'YOUR TURN' : 'ENEMY TURN'}
-            </div>
-          : <div style={{ display:'inline-flex', alignItems:'center', gap:8,
-                          background: winner===playerRole ? '#34C759' : '#FF3B30', color:'#fff',
-                          borderRadius:999, padding:'8px 24px', fontWeight:700, fontSize:'0.9rem' }}>
-              {winner===playerRole ? 'VICTORY' : 'DEFEATED'}
-            </div>
-        }
+        {!isViewingPieces && (
+          !winner
+            ? <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                            gap:8, minWidth: 200,
+                            background: isMyTurn ? '#056d94' : '#FF3B30', color:'#fff',
+                            borderRadius:999, padding:'8px 24px', fontWeight:700, fontSize:'0.9rem',
+                            letterSpacing:'1px',
+                            boxShadow:`0 4px 14px ${isMyTurn ? 'rgba(5, 109, 148, 0.4)' : 'rgba(255,59,48,0.4)'}`,
+                            transition:'background 0.3s, box-shadow 0.3s' }}>
+                {isMyTurn ? 'YOUR TURN' : 'ENEMY TURN'}
+              </div>
+            : <div style={{ display:'inline-flex', alignItems:'center', gap:8,
+                            background: winner===playerRole ? '#34C759' : '#FF3B30', color:'#fff',
+                            borderRadius:999, padding:'8px 24px', fontWeight:700, fontSize:'0.9rem' }}>
+                {winner===playerRole ? 'VICTORY' : 'DEFEATED'}
+              </div>
+        )}
+        {isViewingPieces && (
+          <div className="badge rounded-pill bg-dark px-4 py-2" style={{ fontSize: '0.9rem', letterSpacing: '1px' }}>
+            VIEWING MODE
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
-        {/* PANEL 1: Piece Legend - hidden on very small screens to save space */}
-        <div style={{ flex: '1 1 145px', maxWidth: 180, display: window.innerWidth < 500 ? 'none' : 'block' }}>
-          <PieceLegend />
+        <div style={{ flex: '0 0 auto' }}>
+          <PieceLegend onSurrender={onSurrender} onPlayAgain={onPlayAgain} onLeave={onLeave} isViewingPieces={isViewingPieces} winner={winner} phase={phase} />
         </div>
 
-        {/* PANEL 2: Main Board - scales with cellSize */}
         <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center', maxWidth: '100%', overflowX:'auto' }}>
-          <BoardGrid board={board} playerRole={playerRole} myDeployRows={myDeployRows}
-            phase="battle" selectedCell={selectedCell} validMoves={validMoves}
-            swapFirst={null} aiLastMove={aiLastMove} lastPlayerMove={lastPlayerMove}
-            onCellClick={handleBattleClick} onCellCtx={() => {}} cellSize={cellSize} />
+          <div className="battlefield-glass-panel" style={{ padding: '0.75rem' }}>
+            <BoardGrid board={board} playerRole={playerRole} myDeployRows={myDeployRows}
+              phase="battle" selectedCell={selectedCell} validMoves={validMoves}
+              swapFirst={null} aiLastMove={aiLastMove} lastPlayerMove={lastPlayerMove}
+              onCellClick={handleBattleClick} onCellCtx={() => {}} cellSize={cellSize} isViewingPieces={isViewingPieces} />
+          </div>
         </div>
 
-        {/* PANEL 3: Graveyard & Battle Log */}
-        <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 350 }}>
+        <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: 350 }}>
           <MyGraveyard board={board} playerRole={playerRole} />
-          <TerminalLog log={battleLog} />
+          <TerminalLog log={battleLog} playerRole={playerRole} />
         </div>
       </div>
     </div>

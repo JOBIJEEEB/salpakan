@@ -17,7 +17,7 @@ export default function TopNav() {
   return (
     <div className="fixed-top d-flex justify-content-center pt-3" style={{ pointerEvents: 'none' }}>
       <nav className="glass-panel px-3 py-2 d-flex align-items-center gap-2 shadow-lg" 
-        style={{ pointerEvents: 'auto', borderRadius: '32px', border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(20px)' }}>
+        style={{ pointerEvents: 'auto', borderRadius: '32px', border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(15px)', WebkitBackdropFilter: 'blur(15px)' }}>
         
         <Link to="/lobbies" className="d-flex align-items-center me-2 pe-3 border-end">
           <img src={salpakanBanner} alt="Salpakan Banner" style={{ height: '30px', width: 'auto' }} />
@@ -34,7 +34,7 @@ export default function TopNav() {
           <Link to="/account" className="d-flex align-items-center gap-2 text-decoration-none">
             <div className="rounded-circle overflow-hidden border shadow-sm" style={{ width: 32, height: 32, background: '#fff' }}>
               <img 
-                src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
+                src={`https://api.dicebear.com/9.x/${profile?.avatar_style || 'big-ears-neutral'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
                 alt="Avatar" 
                 style={{ width: '100%', height: '100%' }} 
               />

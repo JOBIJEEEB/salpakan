@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRankTier, getNextTier, getProgressToNext, formatRR } from '../lib/rankUtils';
 import { showPlayerProfile } from '../lib/profileUtils';
 import Swal from 'sweetalert2';
+import VersionBadge from '../components/VersionBadge';
 
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -23,6 +24,7 @@ export default function Lobbies() {
   const [gameMode, setGameMode] = useState('Normal'); // Blitz, Normal, Competitive
   const [privacy, setPrivacy] = useState('public');
   const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const tier = profile ? getRankTier(profile.command_rating) : null;
   const nextTier = profile ? getNextTier(profile.command_rating) : null;
@@ -40,7 +42,21 @@ export default function Lobbies() {
     if (fetchErr) {
       console.error('Fetch lobbies error:', fetchErr);
     } else {
-      const list = (data || []).filter(m => m.status !== 'completed' && !m.game_state?.winner);
+      const now = new Date();
+      const list = (data || []).filter(m => {
+        const created = new Date(m.created_at);
+        const ageInMins = (now - created) / (1000 * 60);
+        const isExpired = (m.status === 'waiting' && ageInMins > 3) || m.status === 'expired';
+        
+        if (isExpired && m.status === 'waiting') {
+          // Auto-mark expired lobbies in the background
+          supabase.from('matches').update({ status: 'expired' }).eq('id', m.id).then();
+          return false;
+        }
+        
+        // Only show open, waiting lobbies that haven't expired
+        return m.status === 'waiting' && !isExpired && !m.game_state?.winner;
+      });
       setMatches(list);
     }
     setLoading(false);
@@ -68,12 +84,27 @@ export default function Lobbies() {
 
     fetchMatches();
 
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now);
+      
+      // Auto-filter expired matches locally to avoid "stuck at 0:00"
+      setMatches(prev => prev.filter(m => {
+        const created = new Date(m.created_at);
+        const secsLeft = 180 - Math.floor((now - created) / 1000);
+        return secsLeft > 0;
+      }));
+    }, 1000);
+
     const channel = supabase
       .channel('lobbies_list')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchMatches)
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(timer);
+    };
   }, [user]);
 
   const handleCreate = async (e) => {
@@ -146,13 +177,13 @@ export default function Lobbies() {
             <div className="row align-items-center g-4">
               {/* Profile Side */}
               <div className="col-lg-4">
-                <div className="d-flex align-items-center gap-4 animate-slide-in">
+                <div className="d-flex align-items-center gap-4">
                   <div className="position-relative">
                     <div className="avatar-ring-animated" />
                     <div className="lobby-profile-avatar-lg shadow-xl cursor-pointer transition-all hover-scale" 
                          onClick={() => showPlayerProfile(profile)}>
                       <img
-                        src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`}
+                        src={`https://api.dicebear.com/9.x/${profile?.avatar_style || 'big-ears-neutral'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`}
                         alt="Profile"
                       />
                     </div>
@@ -171,11 +202,11 @@ export default function Lobbies() {
 
               {/* Tactical Status Row (Right) */}
               <div className="col-lg-8">
-                <div className="d-flex flex-wrap align-items-center justify-content-lg-end gap-3 animate-fade-in-delayed">
+                <div className="d-flex flex-wrap align-items-center justify-content-lg-end gap-3">
                   {/* Hero Rank Module (Compact) */}
-                  <div className="hero-rank-module p-2 d-flex align-items-center gap-3"
-                    style={{ minWidth: 380, background: 'rgba(255,255,255,0.95)' }}>
-                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 32, height: 32, background: '#fff', border: '1px solid #000', flexShrink: 0 }}>
+                  <div className="hero-rank-module d-flex align-items-center gap-3"
+                    style={{ minWidth: 380, background: 'rgba(255,255,255,0.95)', padding: '12px 24px', height: '68px' }}>
+                    <div className="rounded-3 overflow-hidden shadow-sm" style={{ width: 36, height: 36, background: '#fff', border: '1px solid rgba(0,0,0,0.2)', flexShrink: 0 }}>
                       <img src={tier?.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
                     </div>
                     <div style={{ flex: 1, textAlign: 'left' }}>
@@ -285,7 +316,7 @@ export default function Lobbies() {
                   </div>
 
                   <button onClick={() => setShowModal(true)} className="apple-btn-primary mt-4 py-3 shadow-lg">
-                    <Plus size={20} className="me-2" /> Start Setup
+                    <Plus size={20} className="me-2" /> Create Lobby
                   </button>
                 </div>
 
@@ -366,12 +397,30 @@ export default function Lobbies() {
                         <div className="d-flex align-items-center gap-2 mb-4 cursor-pointer hover-bg-light p-2 rounded-3 transition-all"
                              onClick={() => showPlayerProfile(m.user_profiles)}>
                           <div className="rounded-circle overflow-hidden border shadow-inner" style={{ width: 28, height: 28, background: '#fff' }}>
-                            <img src={`https://api.dicebear.com/7.x/${m.user_profiles?.avatar_style || 'notionists'}/svg?seed=${m.user_profiles?.avatar_seed || m.user_profiles?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="Avatar" style={{ width: '100%', height: '100%' }} />
+                            <img src={`https://api.dicebear.com/9.x/${m.user_profiles?.avatar_style || 'big-ears-neutral'}/svg?seed=${m.user_profiles?.avatar_seed || m.user_profiles?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="Avatar" style={{ width: '100%', height: '100%' }} />
                           </div>
                           <div className="rounded-1 overflow-hidden shadow-sm" style={{ width: 24, height: 24, background: '#fff' }}>
                             <img src={hostTier.icon} alt="Rank" style={{ width: '100%', height: '100%' }} />
                           </div>
                           <span className="text-muted fw-bold" style={{ fontSize: '0.8rem' }}>{m.user_profiles?.username}</span>
+                        </div>
+
+                        <div className="d-flex align-items-center justify-content-between mb-3 px-1">
+                          <div className="d-flex align-items-center gap-1 text-muted" style={{ fontSize: '0.75rem' }}>
+                            <Clock size={12} />
+                            <span>EXPIRES IN</span>
+                          </div>
+                          <span className={`fw-mono fw-bold ${(() => {
+                            const secs = Math.max(0, 180 - Math.floor((currentTime - new Date(m.created_at)) / 1000));
+                            return secs < 30 ? 'text-danger animate-pulse' : 'text-primary';
+                          })()}`} style={{ fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                            {(() => {
+                              const secs = Math.max(0, 180 - Math.floor((currentTime - new Date(m.created_at)) / 1000));
+                              const mm = Math.floor(secs / 60);
+                              const ss = secs % 60;
+                              return `${mm}:${ss.toString().padStart(2, '0')}`;
+                            })()}
+                          </span>
                         </div>
 
                         <button onClick={() => handleJoinPublic(m.id, m.host_id)}
@@ -385,6 +434,7 @@ export default function Lobbies() {
                 })}
               </div>
             )}
+            <VersionBadge />
           </div>
         </div>
 

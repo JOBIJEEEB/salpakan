@@ -25,15 +25,14 @@ const STEPS = [
     content: (
       <div className="text-center animate-fade-in h-100 d-flex flex-column justify-content-center">
         <p className="lead text-dark fw-bold mb-4">
-          Salpakan (Game of the Generals) is a proud piece of Philippine culture, invented in 1970 to celebrate strategy and psychological warfare.
+          Salpakan (Game of the Generals) is a proud piece of Philippine culture, invented in 1970 by <b>Sofronio H. Pasola Jr.</b> to celebrate strategy and psychological warfare.
         </p>
         <div className="glass-panel p-4 bg-white border-dark border-opacity-10 shadow-sm text-start">
           <h6 className="fw-black text-uppercase d-flex align-items-center gap-2 mb-3" style={{ fontSize: '0.7rem', color: '#007AFF' }}>
-            <Code size={14} /> The Digital Commander
+            <Code size={14} /> Developed by: <a href="https://github.com/JOBIJEEEB" target="_blank" rel="noopener noreferrer" className="text-decoration-none" style={{ color: 'inherit' }}>JB Hernandez</a>
           </h6>
           <p className="mb-0 small fw-medium" style={{ lineHeight: '1.6' }}>
-            This digital Command Center was engineered and envisioned by <b>JB Hernandez</b>, 
-            bringing the classic game into the modern era with high-stakes competitive tracking and elite tactical training.
+            To honor the legacy of Game of the Generals, I engineered this digital platform to bring the classic Philippine board game into the modern era integrated with competitive leaderboard and community features.
           </p>
         </div>
       </div>
@@ -41,21 +40,21 @@ const STEPS = [
   },
   {
     id: 'welcome',
-    title: 'Welcome Soldier',
+    title: 'Salpakan na!',
     icon: <Gamepad2 size={48} className="text-primary" />,
     content: (
       <div className="text-center animate-fade-in h-100 d-flex flex-column justify-content-center">
         <p className="text-muted mb-4 fw-medium">
-          You lead an army of hidden units. Success depends on your ability to outsmart, outmaneuver, and outlast your opponent.
+          Take command of your units. Plan your moves carefully and outthink your opponent to win the war.
         </p>
         <div className="glass-panel p-4 text-start bg-white-50 border-dark border-opacity-10">
           <h6 className="fw-black text-uppercase d-flex align-items-center gap-2 mb-3" style={{ fontSize: '0.7rem', color: '#FF3B30' }}>
-            <Target size={16} /> Mission Objectives
+            <Target size={16} /> How to Win?
           </h6>
           <ul className="mb-0 small d-flex flex-column gap-2 fw-bold">
             <li><b>Capture the Flag</b>: Locate and eliminate the enemy Flag piece.</li>
             <li><b>Reach the Edge</b>: Move your Flag to the opponent's back row.</li>
-            <li><b>Total Elimination</b>: Wipe out all opposing mobile pieces.</li>
+            <li><b>Ubusin! Ubusin!</b>: Wipe out all opposing mobile pieces.</li>
           </ul>
         </div>
       </div>
@@ -63,29 +62,41 @@ const STEPS = [
   },
   {
     id: 'hierarchy',
-    title: 'The Elite Hierarchy',
-    icon: <Swords size={48} className="text-danger" />,
+    title: 'Pieces Hierarchy',
+    icon: <Swords size={48} className="text-primary" />,
     content: (
-      <div className="animate-fade-in h-100 d-flex flex-column justify-content-center">
-        <p className="text-center text-muted small mb-3 fw-medium">
+      <div className="animate-fade-in h-100 d-flex flex-column justify-content-start pt-2">
+        <p className="text-center text-muted small mb-2 fw-medium">
           Higher-ranking pieces eliminate lower-ranking ones.
         </p>
-        <div className="row g-2 mb-3 px-2 overflow-auto no-scrollbar" style={{ maxHeight: '220px' }}>
+        <div className="row g-1 mb-2 px-1">
           {[...PIECE_DEFS]
             .sort((a, b) => b.rank - a.rank)
-            .map((def) => (
-              <div key={def.type} className="col-6">
-                <div className="glass-panel p-1 px-2 d-flex align-items-center gap-2" 
-                     style={{ borderLeft: `3px solid ${def.rank > 10 ? '#FF3B30' : '#8E8E93'}`, background: '#fff' }}>
-                  <div className="fw-black text-center" style={{ fontSize: '0.65rem', width: 18, color: '#000' }}>{def.rank}</div>
-                  <div className="fw-bold text-truncate" style={{ fontSize: '0.7rem', color: '#000' }}>{def.label}</div>
+            .map((def) => {
+              const isSpecial = def.type === 'FLAG' || def.type === 'SPY';
+              const displayRank = isSpecial ? 'S' : (def.rank - 1);
+              return (
+                <div key={def.type} className="col-4">
+                  <div className="glass-panel p-1 px-2 d-flex align-items-center gap-1" 
+                       style={{ 
+                         borderLeft: `2px solid ${isSpecial ? '#FF9500' : (def.rank > 10 ? '#e67710ff' : '#0966cfff')}`, 
+                         background: '#ffffffff', 
+                         height: '32px' 
+                       }}>
+                    <div className="fw-black text-center" style={{ fontSize: '0.6rem', width: 14, color: isSpecial ? '#FF9500' : '#000' }}>
+                      {displayRank}
+                    </div>
+                    <div className="fw-bold text-truncate" style={{ fontSize: '0.6rem', color: '#000' }}>
+                      {def.label} {isSpecial && <span style={{ fontSize: '0.5rem', opacity: 0.5 }}>(Special)</span>}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
-        <div className="glass-panel p-3 bg-warning-subtle border-warning border-opacity-25 shadow-sm">
-          <h6 className="fw-bold mb-2" style={{ fontSize: '0.75rem' }}>Special Combat Rules:</h6>
-          <ul className="mb-0 fw-bold" style={{ fontSize: '0.65rem' }}>
+        <div className="glass-panel p-3 bg-white-subtle border-info border-opacity-25 shadow-sm">
+          <h6 className="fw-bold mb-1" style={{ fontSize: '0.7rem' }}>Special Combat Rules:</h6>
+          <ul className="mb-0 fw-bold" style={{ fontSize: '0.6rem', paddingLeft: '1.2rem' }}>
             <li><b>The Spy</b>: Eliminates all ranks, but is defeated by the <b>Private</b>.</li>
             <li><b>The Private</b>: The only piece that can eliminate a <b>Spy</b>.</li>
             <li><b>Equal Ranks</b>: Both pieces are eliminated from the board.</li>
@@ -96,15 +107,15 @@ const STEPS = [
   },
   {
     id: 'navigation',
-    title: 'Command Center Navigation',
-    icon: <Map size={48} className="text-success" />,
+    title: 'Page Navigation',
+    icon: <Map size={48} className="text-primary" />,
     content: (
       <div className="d-flex flex-column gap-2 animate-fade-in h-100 justify-content-center">
         {[
-          { icon: <LayoutDashboard size={18} />, title: 'Game Center', desc: 'Host live matches and track RR stats.' },
-          { icon: <Shield size={18} />, title: 'Command Training', desc: 'Sharpen tactics against elite AI.' },
-          { icon: <Trophy size={18} />, title: 'Global Rankings', desc: 'Rise from Mandirigma to Bayani.' },
-          { icon: <User size={18} />, title: 'Profile', desc: 'Customize your tactical avatar.' }
+          { icon: <Gamepad2 size={18} />, title: 'Play', desc: 'Host live matches and climb the competitive ladder.' },
+          { icon: <Swords size={18} />, title: 'Practice', desc: 'Sharpen your tactics against elite AI commanders.' },
+          { icon: <Trophy size={18} />, title: 'Rankings', desc: 'View global standings and seasonal leaderboards.' },
+          { icon: <User size={18} />, title: 'Profile', desc: 'Customize your callsign, avatar, and view stats.' }
         ].map((nav, i) => (
           <div key={i} className="glass-panel p-2 d-flex align-items-center gap-3 border-dark border-opacity-10 bg-white">
             <div className="stat-icon-wrapper text-primary p-2 bg-light rounded-3" style={{ width: 36, height: 36 }}>
@@ -157,34 +168,37 @@ export default function Tutorial() {
                  margin: '0 auto'
                }}>
             
-            {/* Header Area (Fixed) */}
-            <div className="text-center mb-4" style={{ flexShrink: 0 }}>
-              <div className="d-block mb-3">
-                <div className="d-inline-flex p-3 rounded-circle bg-light shadow-sm animate-bounce-subtle">
-                  {step.icon}
+            {/* Content Transition Wrapper */}
+            <div key={currentStep} className="animate-slide-up d-flex flex-column h-100 overflow-hidden">
+              {/* Header Area (Fixed) */}
+              <div className="text-center mb-1" style={{ flexShrink: 0 }}>
+                <div className="d-block mb-1">
+                  <div className="d-inline-flex p-2 rounded-circle bg-light shadow-sm animate-bounce-subtle">
+                    {step.icon}
+                  </div>
+                </div>
+                <h1 className="display-6 fw-black header-gradient-text mb-2" style={{ letterSpacing: '-1.5px', fontSize: '2.0rem' }}>
+                  {step.title}
+                </h1>
+                <div className="d-flex justify-content-center gap-1">
+                  {STEPS.map((_, i) => (
+                    <div key={i} 
+                         style={{ 
+                           width: i === currentStep ? 32 : 8, 
+                           height: 4, 
+                           borderRadius: 2, 
+                           background: i === currentStep ? '#007AFF' : '#E5E5EA',
+                           transition: 'all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)'
+                         }} />
+                  ))}
                 </div>
               </div>
-              <h1 className="display-6 fw-black header-gradient-text mb-3" style={{ letterSpacing: '-1.5px', fontSize: '2.2rem' }}>
-                {step.title}
-              </h1>
-              <div className="d-flex justify-content-center gap-1">
-                {STEPS.map((_, i) => (
-                  <div key={i} 
-                       style={{ 
-                         width: i === currentStep ? 32 : 8, 
-                         height: 6, 
-                         borderRadius: 3, 
-                         background: i === currentStep ? '#007AFF' : '#E5E5EA',
-                         transition: 'all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)'
-                       }} />
-                ))}
-              </div>
-            </div>
 
-            {/* Content Body (Fixed Height with Overflow) */}
-            <div className="flex-grow-1 overflow-hidden px-lg-4" style={{ position: 'relative' }}>
-              <div className="h-100 w-100">
-                {step.content}
+              {/* Content Body (Fixed Height with Overflow) */}
+              <div className="flex-grow-1 overflow-hidden px-lg-4 mt-3" style={{ position: 'relative' }}>
+                <div className="h-100 w-100">
+                  {step.content}
+                </div>
               </div>
             </div>
 
@@ -211,7 +225,7 @@ export default function Tutorial() {
                 style={{ 
                   width: 'auto', 
                   padding: '12px 48px', 
-                  background: '#000',
+                  background: '#007AFF',
                   color: '#fff',
                   borderRadius: '16px',
                   fontSize: '0.9rem',
@@ -221,8 +235,8 @@ export default function Tutorial() {
                   border: 'none'
                 }}
               >
-                <span>{currentStep === STEPS.length - 1 ? 'Start Mission' : 'Next Step'}</span>
-                <ChevronRight size={18} />
+                <span>{currentStep === STEPS.length - 1 ? 'Salpakan na!' : 'Next'}</span>
+                <ChevronRight size={18} color="#ffffff" />
               </button>
             </div>
           </div>
@@ -230,6 +244,13 @@ export default function Tutorial() {
       </div>
 
       <style>{`
+        .animate-slide-up {
+          animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .animate-bounce-subtle {
           animation: bounce-subtle 3s infinite ease-in-out;
         }

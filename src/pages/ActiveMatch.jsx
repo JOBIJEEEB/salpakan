@@ -10,7 +10,7 @@ import { Gamepad2 } from 'lucide-react';
 
 export default function ActiveMatch() {
   const { id } = useParams();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   const [match,        setMatch]        = useState(null);
@@ -23,6 +23,8 @@ export default function ActiveMatch() {
   const [role,         setRole]         = useState(null);
   const [opponentName, setOpponentName] = useState('Opponent');
   const [isReady,      setIsReady]      = useState(false);
+  const [isViewingPieces, setIsViewingPieces] = useState(false);
+  const [rrChangeAmount, setRrChangeAmount] = useState(null);
   const matchFinishedRef = useRef(false);
   const swalShownRef = useRef(false);
   const statsProcessedRef = useRef(false);
@@ -50,6 +52,7 @@ export default function ActiveMatch() {
     }
     
     // Strict security: kick out unauthorized third players
+    // Note: guest_id can rejoin if it matches user.id
     if (data.host_id !== user.id && data.guest_id && data.guest_id !== user.id) {
       Swal.fire({
         title: 'Lobby Full',
@@ -82,17 +85,43 @@ export default function ActiveMatch() {
         { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${id}` },
         (payload) => {
           if (!mounted) return;
+          
+          // CRITICAL: If we are in "Viewing Mode", ignore board/phase updates from other players
+          // to prevent the UI from reverting back to a previous state.
+          if (isViewingPieces && payload.new.status === 'completed') {
+            setMatch(prev => ({ ...prev, ...payload.new }));
+            return;
+          }
+
           if (payload.new.status === 'completed') matchFinishedRef.current = true;
           setMatch(prev => ({ ...prev, ...payload.new }));
           const gs = payload.new.game_state;
           if (gs) {
             if (gs.winner) matchFinishedRef.current = true;
-            setBoard(gs.board        ?? []);
-            setPhase(gs.phase        ?? 'deployment');
-            setCurrentTurn(gs.current_turn ?? 'host');
+            
+            // Issue 6: During deployment, don't overwrite local pieces with opponent's board update
+            if (gs.phase === 'deployment') {
+              setBoard(prevBoard => {
+                const nextBoard = gs.board || Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
+                return prevBoard.map((rowArr, r) => 
+                  rowArr.map((cell, c) => {
+                    const incomingCell = nextBoard[r][c];
+                    if (cell?.owner === role) return cell;
+                    if (incomingCell?.owner !== role) return incomingCell;
+                    return cell;
+                  })
+                );
+              });
+            } else if (!isViewingPieces) {
+              // Only update board/phase if NOT viewing pieces
+              setBoard(gs.board        ?? []);
+              setPhase(gs.phase        ?? 'deployment');
+              setCurrentTurn(gs.current_turn ?? 'host');
+            }
+
             setBattleLog(gs.battle_log     ?? []);
             setWinner(gs.winner            ?? null);
-            // If the phase is back to deployment (e.g. restart), reset ready state
+            
             if (gs.phase === 'deployment' && gs.host_ready === false && gs.guest_ready === false) {
               setIsReady(false);
             }
@@ -100,18 +129,67 @@ export default function ActiveMatch() {
         })
       .subscribe();
 
-    // ── Tab visibility: re-sync on focus (fixes "tab switching resets state") ──
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchMatch();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
       mounted = false;
       supabase.removeChannel(channel);
-      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [id]);
+  }, [id, phase, winner]);
+  
+  // ── Lobby Expiration Check (Issue: 3-minute timer) ──────────────────────────
+  useEffect(() => {
+    if (!match || match.status !== 'waiting' || winner) return;
+    
+    const checkExpiration = async () => {
+      const now = new Date();
+      const created = new Date(match.created_at);
+      const ageInMins = (now - created) / (1000 * 60);
+      
+      if (ageInMins > 3) {
+        // Only host deletes, guest just leaves (if any, though status 'waiting' usually means no guest)
+        if (match.host_id === user.id) {
+          await supabase.from('matches').update({ status: 'expired' }).eq('id', id);
+        }
+        
+        Swal.fire({
+          title: 'Lobby Expired',
+          text: 'This lobby has expired due to inactivity (3-minute limit).',
+          icon: 'warning',
+          confirmButtonColor: '#056d94',
+          customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm' }
+        }).then(() => navigate('/lobbies'));
+      }
+    };
+
+    const interval = setInterval(checkExpiration, 10000); // Check every 10s
+    checkExpiration(); // Initial check
+    
+    return () => clearInterval(interval);
+  }, [match, winner, id, user.id]);
+
+  // ── Deployment persistence (Issue 3) ───────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'deployment' || !role) return;
+    const storageKey = `salpakan_deploy_${id}_${role}`;
+    
+    // On mount, check if we have a saved board
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setBoard(parsed);
+      } catch (e) { console.warn('Failed to load saved deployment', e); }
+    }
+  }, [id, role]); // Run once on role/match load
+
+  useEffect(() => {
+    if (phase === 'deployment' && role) {
+      const storageKey = `salpakan_deploy_${id}_${role}`;
+      localStorage.setItem(storageKey, JSON.stringify(board));
+    }
+    if (phase === 'battle') {
+      localStorage.removeItem(`salpakan_deploy_${id}_${role}`);
+    }
+  }, [board, phase, id, role]);
 
   // ── Fetch opponent profile once match + role are known ────────────────────
   useEffect(() => {
@@ -124,26 +202,42 @@ export default function ActiveMatch() {
 
   // ── SweetAlert for win/loss ───────────────────────────────────────────────
   useEffect(() => {
-    if (!winner || !role || swalShownRef.current) return;
+    if (!winner || !role || swalShownRef.current || rrChangeAmount === null) return;
     swalShownRef.current = true;
     
     const isWin = winner === role;
     const isTie = winner === 'tie';
+    const isLossAtZero = !isWin && !isTie && (profile?.command_rating === 0);
     
+    const rrText = rrChangeAmount >= 0 ? `+${rrChangeAmount}` : `${rrChangeAmount}`;
+    const titleText = isLossAtZero ? 'Skill issue :(' : (isWin ? 'Victory' : (isTie ? 'Draw' : 'Defeated'));
+    const bodyText = isLossAtZero 
+      ? 'Try mo muna kaya mag AI.'
+      : (isWin ? `You outmaneuvered your opponent! (${rrText} RR)` 
+           : (isTie ? `Both flags were eliminated in a final stand. (${rrText} RR)` 
+           : `${opponentName} captured your flag. (${rrText} RR)`));
+
     Swal.fire({
-      title: isWin ? 'Victory' : (isTie ? 'Draw' : 'Defeated'),
-      text: isWin ? 'You outmaneuvered your opponent!' 
-           : (isTie ? 'Both flags were eliminated in a final stand.' 
-           : `${opponentName} captured your flag.`),
+      title: titleText,
+      text: bodyText,
       icon: isWin ? 'success' : (isTie ? 'info' : 'error'),
-      confirmButtonText: 'Back to Lobbies',
-      confirmButtonColor: isWin ? '#34C759' : '#056d94',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Play Again',
+      denyButtonText: 'View Pieces',
+      cancelButtonText: 'Leave Lobby',
+      confirmButtonColor: '#34C759',
+      denyButtonColor: '#007AFF',
+      cancelButtonColor: '#8E8E93',
+      width: 500,
       customClass: {
         popup: 'apple-swal',
         title: 'apple-swal-title',
         confirmButton: 'apple-swal-confirm',
+        cancelButton: 'apple-swal-cancel',
+        denyButton: 'apple-swal-deny'
       }
-    }).then(async () => {
+    }).then(async (result) => {
       // Final Sealer safeguard for the host
       if (role === 'host' && match?.status === 'in_progress' && winner) {
         await supabase.from('matches').update({ 
@@ -152,12 +246,20 @@ export default function ActiveMatch() {
         }).eq('id', id);
       }
       matchFinishedRef.current = true;
-      navigate('/lobbies', { replace: true });
+      
+      if (result.isConfirmed) navigate('/lobbies', { replace: true });
+      else if (result.isDenied) setIsViewingPieces(true);
+      else navigate('/lobbies', { replace: true });
     });
+  }, [winner, role, opponentName, rrChangeAmount]);
 
-    // Trigger stat update for the current player
-    processEloUpdate(winner);
-  }, [winner, role, opponentName]);
+  // Trigger stat update for the current player
+  useEffect(() => {
+    // Wait until match is officially completed on the server to avoid race conditions
+    if (winner && role && match?.status === 'completed' && !statsProcessedRef.current) {
+      processEloUpdate(winner);
+    }
+  }, [winner, role, match?.status]);
 
   // ── Sealer: Host ensures status=completed if winner exists ────────────────
   useEffect(() => {
@@ -222,9 +324,11 @@ export default function ActiveMatch() {
     const myNewCR = isHost ? newHostCR : newGuestCR;
     const myProfile = isHost ? hostP : guestP;
     const myScore = isHost ? hostScore : (1 - hostScore);
+    const myChange = myNewCR - (isHost ? hostCR : guestCR);
+    setRrChangeAmount(myChange);
 
     try {
-      console.log(`StatsUpdate [${role}]: myScore=${myScore}, currentWins=${myProfile.wins}, currentLosses=${myProfile.losses}`);
+      console.log(`StatsUpdate [${role}]: myScore=${myScore}, change=${myChange}`);
       
       const updatePayload = {
         command_rating: myNewCR,
@@ -234,14 +338,34 @@ export default function ActiveMatch() {
         draws: (myProfile.draws || 0) + (myScore === 0.5 ? 1 : 0)
       };
 
-      // ONLY update the current player's profile to satisfy RLS
-      const { error } = await supabase.from('user_profiles').update(updatePayload).eq('id', user.id);
+      // Update user profile
+      const { error: profileError } = await supabase.from('user_profiles').update(updatePayload).eq('id', user.id);
       
-      if (error) {
-        console.error('Self profile update error:', error);
+      if (profileError) {
+        console.error('Self profile update error:', profileError);
       } else {
         console.log('StatsUpdate Success:', updatePayload);
-        refreshProfile(); // Refresh context
+        refreshProfile(); 
+
+        // ALSO update match game_state with the rating change so history can show it
+        // We use the atomic RPC function to avoid any race conditions between players
+        console.log(`[ELO] Sending RPC update for ${role}: ${myChange} RR`);
+        const { error: rpcErr } = await supabase.rpc('update_match_rr', { 
+          match_id: id, 
+          role: role, 
+          rr_change: myChange 
+        });
+
+        if (rpcErr) {
+          console.warn('RPC update failed, falling back to manual merge:', rpcErr);
+          // Fallback if the RPC isn't created yet
+          const { data: latestMatch } = await supabase.from('matches').select('game_state').eq('id', id).single();
+          if (latestMatch) {
+            const currentGs = typeof latestMatch.game_state === 'string' ? JSON.parse(latestMatch.game_state) : (latestMatch.game_state || {});
+            const updatedGs = { ...currentGs, [isHost ? 'host_rr_change' : 'guest_rr_change']: myChange };
+            await supabase.from('matches').update({ game_state: updatedGs }).eq('id', id);
+          }
+        }
       }
     } catch (err) {
       console.warn('Elo update catch block:', err);
@@ -356,28 +480,39 @@ export default function ActiveMatch() {
     }
   };
 
-  const handleForfeit = async () => {
+  const handleSurrender = async () => {
     if (winner || matchFinishedRef.current) { 
       navigate('/lobbies', { replace: true }); 
       return; 
     }
 
-    const isStarting = (phase === 'deployment' || !match?.guest_id);
-    const title = isStarting ? 'Leave Lobby?' : 'Forfeit Match?';
-    const text  = isStarting 
-      ? 'Are you sure you want to leave? This lobby will be closed.'
-      : 'Are you sure you want to forfeit? This will count as a DEFEAT.';
+    const isDeployment = phase === 'deployment';
+    const isHost = role === 'host';
+    
+    // Context-aware messages
+    let title = 'Surrender Match?';
+    let text = 'Are you sure you want to surrender? This will count as a DEFEAT.';
+    
+    if (isDeployment) {
+      if (isHost) {
+        title = 'Close Lobby?';
+        text = 'Are you sure you want to leave? This lobby will be closed for everyone.';
+      } else {
+        title = 'Leave Lobby?';
+        text = 'Are you sure you want to leave this lobby?';
+      }
+    }
 
     const confirm = await Swal.fire({
       title, text, icon: 'warning', showCancelButton: true,
-      confirmButtonText: isStarting ? 'Yes, leave' : 'Yes, forfeit',
-      cancelButtonText: 'Cancel', confirmButtonColor: '#FF3B30', cancelButtonColor: '#86868B',
+      confirmButtonText: (isDeployment && !isHost) ? 'Yes, leave' : (isDeployment ? 'Yes, close' : 'Yes, surrender'),
+      cancelButtonText: 'Cancel', confirmButtonColor: '#FF3B30', cancelButtonColor: '#8E8E93',
       customClass: { popup: 'apple-swal', title: 'apple-swal-title', confirmButton: 'apple-swal-confirm', cancelButton: 'apple-swal-cancel' }
     });
 
     if (confirm.isConfirmed) {
       const opponentRole = role === 'host' ? 'guest' : 'host';
-      const finalWinner = isStarting ? null : opponentRole;
+      const finalWinner = isDeployment ? null : opponentRole;
       
       const { data: matchData } = await supabase.from('matches').select('host_id, guest_id, game_state').eq('id', id).single();
       const currentGs = matchData?.game_state || {};
@@ -386,27 +521,35 @@ export default function ActiveMatch() {
         ...currentGs,
         winner: finalWinner,
         winner_id: finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null),
-        battle_log: [...(currentGs.battle_log || []), `${role.toUpperCase()} ${isStarting ? 'left' : 'forfeited'}.`]
+        battle_log: [...(currentGs.battle_log || []), `${role.toUpperCase()} ${isDeployment ? 'left' : 'surrendered'}.`]
       };
 
       const wId = finalWinner === 'host' ? matchData.host_id : (finalWinner === 'guest' ? matchData.guest_id : null);
 
-      // Strategy 1: Combined Update
-      const { error: err1 } = await supabase.from('matches').update({
-        status: isStarting ? 'cancelled' : 'completed',
-        game_state: newGs,
-        winner_id: wId
-      }).eq('id', id);
-
-      if (err1) {
-        console.warn('Forfeit Strategy 1 failed, trying Strategy 2...', err1);
-        // Strategy 2: Game State & Status Only (separated if needed)
-        await supabase.from('matches').update({ game_state: newGs }).eq('id', id);
-        await supabase.from('matches').update({ status: isStarting ? 'cancelled' : 'completed' }).eq('id', id);
+      if (isDeployment) {
+        if (isHost) {
+          // Host leaves during deployment -> Cancel match
+          await supabase.from('matches').update({ status: 'cancelled', game_state: newGs }).eq('id', id);
+        } else {
+          // Guest leaves during deployment -> Clear guest slot, don't cancel
+          await supabase.from('matches').update({ guest_id: null, status: 'waiting' }).eq('id', id);
+        }
+        matchFinishedRef.current = true;
+        navigate('/lobbies', { replace: true });
+      } else {
+        // Surrender during battle -> Complete match
+        await supabase.from('matches').update({
+          status: 'completed',
+          game_state: newGs,
+          winner_id: wId
+        }).eq('id', id);
+        
+        // IMPORTANT: Process stats for the surrendering player locally
+        await processEloUpdate(finalWinner);
+        
+        // Note: We don't navigate here. The useEffect watching the 'winner' state 
+        // will trigger the final Victory/Defeat popup, which handles navigation.
       }
-
-      matchFinishedRef.current = true;
-      navigate('/lobbies', { replace: true });
     }
   };
 
@@ -430,7 +573,7 @@ export default function ActiveMatch() {
               <div className="mb-4 position-relative d-inline-block">
                 <div className="rounded-circle overflow-hidden border border-white border-4 shadow-sm" style={{ width: 100, height: 100, background: '#fff' }}>
                   <img 
-                    src={`https://api.dicebear.com/7.x/${profile?.avatar_style || 'notionists'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
+                    src={`https://api.dicebear.com/9.x/${profile?.avatar_style || 'big-ears-neutral'}/svg?seed=${profile?.avatar_seed || profile?.username}&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
                     alt="Avatar" 
                     style={{ width: '100%', height: '100%' }} 
                   />
@@ -491,51 +634,47 @@ export default function ActiveMatch() {
 
   return (
     <div className="battlefield-container overflow-hidden">
-      <div className="d-flex flex-column" style={{ height: '100vh', padding: '0.75rem 1.25rem' }}>
-
-        {/* Header */}
-        <div className="d-flex align-items-center mb-3 gap-3">
-          <button onClick={handleForfeit}
-            className="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm"
-            style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-            {winner ? 'Back to Lobbies' : (phase === 'deployment' ? 'Leave Lobby' : 'Forfeit Match')}
-          </button>
-          <div>
-            <h5 className="fw-bold mb-0">
-              <span style={{ color: '#056d94' }}>{myName}</span>
-              <span className="text-muted mx-2">vs</span>
-              <span style={{ color: '#FF3B30' }}>{opponentName}</span>
-            </h5>
-            <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-              Playing as <strong>{role?.toUpperCase()}</strong> · {isMyTurn ? 'Your turn' : 'Opponent\'s turn'}
-            </small>
-          </div>
-        </div>
-
-        <div className="flex-grow-1 overflow-hidden position-relative glass-panel p-2">
+      <div className="d-flex flex-column h-100 p-0">
+        <div className="flex-grow-1 overflow-hidden position-relative p-0">
           <div className="h-100 overflow-auto no-scrollbar">
+            {/* Header */}
+            <div className="px-4 pt-3 pb-2 text-center">
+              <h5 className="fw-bold mb-0">
+                <span style={{ color: '#056d94' }}>{myName}</span>
+                <span className="text-muted mx-2">vs</span>
+                <span style={{ color: '#FF3B30' }}>{opponentName}</span>
+              </h5>
+              <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                Playing as <strong>{role?.toUpperCase()}</strong> · {isMyTurn ? 'Your turn' : 'Opponent\'s turn'}
+              </small>
+            </div>
             <GameBoard
-          board={board}       setBoard={setBoard}
-          phase={phase}       setPhase={handlePhaseChange}
-          currentTurn={currentTurn} setCurrentTurn={setCurrentTurn}
-          playerRole={role}
-          battleLog={battleLog} setBattleLog={setBattleLog}
-          winner={winner}     setWinner={setWinner}
-          onMove={syncToSupabase}
-          onTimeout={handleTimeout}
-          gameMode={match?.game_state?.game_mode || 'Normal'}
-          turnStartAt={match?.game_state?.turn_start_at}
-        />
-        {isReady && phase === 'deployment' && (
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10
-          }}>
-            <div className="spinner-border text-primary mb-3" />
-            <h5 className="fw-bold text-dark">Waiting for opponent to deploy...</h5>
-          </div>
-        )}
+              board={board}       setBoard={setBoard}
+              phase={phase}       setPhase={handlePhaseChange}
+              currentTurn={currentTurn} setCurrentTurn={setCurrentTurn}
+              playerRole={role}
+              battleLog={battleLog} setBattleLog={setBattleLog}
+              winner={winner}     setWinner={setWinner}
+              onMove={syncToSupabase}
+              onTimeout={handleTimeout}
+              gameMode={match?.game_state?.game_mode || 'Normal'}
+              turnStartAt={match?.game_state?.turn_start_at}
+              matchCreatedAt={match?.created_at}
+              onSurrender={handleSurrender}
+              onPlayAgain={() => navigate('/lobbies', { replace: true })}
+              onLeave={() => navigate('/lobbies', { replace: true })}
+              isViewingPieces={isViewingPieces}
+            />
+            {isReady && phase === 'deployment' && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(3px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10
+              }}>
+                <div className="spinner-border text-primary mb-3" />
+                <h5 className="fw-bold text-dark">Waiting for opponent to deploy...</h5>
+              </div>
+            )}
           </div>
         </div>
       </div>
