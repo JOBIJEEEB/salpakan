@@ -71,8 +71,7 @@ salpakan/
 | 3 | 200-299 RR | Datu |
 | 4 | 300-399 RR | Maharlika |
 | 5 | 400-499 RR | Heneral |
-| 6 | 500-599 RR | Supremo |
-| 7 | 600+ RR | Bayani |
+| 6 | 500-599 RR | Bayani |
+| 7 | 600+ RR | Supremo |
 
----
-Developed by **JB Hernandez** © 2026
+
